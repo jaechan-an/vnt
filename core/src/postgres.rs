@@ -1,6 +1,8 @@
 use dotenv::dotenv;
 use tokio_postgres::{Error, NoTls};
 
+use tracing::{error, info};
+
 pub struct Postgres {
     host: String,
     user: String,

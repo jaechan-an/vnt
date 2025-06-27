@@ -4,6 +4,7 @@ use methods::VNT_ZKP_ELF;
 use risc0_zkvm::{default_prover, ExecutorEnv};
 
 use clap::Parser;
+use tokio_postgres::Error;
 
 use std::{fs, path::Path};
 
@@ -12,7 +13,7 @@ use tracing_appender::rolling;
 use tracing_subscriber::fmt::layer;
 use tracing_subscriber::prelude::*;
 
-use core::log;
+use core::{log, postgres::Postgres};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -42,7 +43,8 @@ struct Args {
     tables: i32,
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), Error> {
     let args = Args::parse();
 
     let logfilter = log::get_log_level(&args.logfilter);
@@ -59,6 +61,13 @@ fn main() {
         .with_filter(logfilter);
 
     tracing_subscriber::registry().with(logger).init();
+
+    // Postgres client setup
+    let postgres = Postgres::new();
+    let pg_client = postgres
+        .connect()
+        .await
+        .expect("Failed to connect to Postgres");
 
     // An executor environment describes the configurations for the zkVM
     // including program inputs.
@@ -104,4 +113,6 @@ fn main() {
 
     // Make sure all logs are dropped.
     drop(log_guard);
+
+    Ok(())
 }

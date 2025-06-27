@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 pub mod log;
+pub mod postgres;
 pub mod util;
 
 #[derive(Debug, Serialize, Deserialize)]
