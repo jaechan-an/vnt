@@ -1,0 +1,26 @@
+[package]
+name = "core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "core"
+path = "src/lib.rs"
+
+[dependencies]
+# env
+dotenv = { workspace = true }
+serde = { workspace = true }
+
+# postgres
+tokio = { workspace = true }
+tokio-postgres = { workspace = true }
+
+# log
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-appender = { workspace = true }
+
+[features]
+host = []
+verify = []
