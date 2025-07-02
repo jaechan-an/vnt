@@ -1,12 +1,10 @@
 [workspace]
 resolver = "2"
-members = ["host", "methods", "core", "verify"]
+members = ["core", "host", "methods", "methods/guest", "verify", "simulator"]
 
 # Common dependencies for the workspace
 [workspace.dependencies]
 dotenv = "0.15.0"
-#clap = "4.5.40"
-#clap_derive = "4.5.40"
 clap = { version = "4.5", features = ["derive"] }
 serde = "1.0.219"
 tracing = "0.1.41"

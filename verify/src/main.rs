@@ -9,7 +9,7 @@ use tracing_appender::rolling;
 use tracing_subscriber::fmt::layer;
 use tracing_subscriber::prelude::*;
 
-use core::{log, MergerJournal};
+use core::{log, AggregationJournal};
 
 use std::fs;
 use std::path::Path;
@@ -22,7 +22,7 @@ struct Args {
     logdir: String,
 
     /// Log file name
-    #[clap(long, default_value = "verify.log")]
+    #[clap(long, default_value = "verify")]
     logfile: String,
 
     /// Log level
@@ -34,7 +34,12 @@ struct Args {
     receiptdir: String,
 
     /// Output file path to save the receipt.
-    #[clap(short = 'r', long, value_parser, default_value = "merger_receipt.bin")]
+    #[clap(
+        short = 'r',
+        long,
+        value_parser,
+        default_value = "aggregation_receipt.bin"
+    )]
     receiptfile: String,
 }
 

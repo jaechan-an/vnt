@@ -4,16 +4,18 @@ use methods::VNT_ZKP_ELF;
 use risc0_zkvm::{default_prover, ExecutorEnv};
 
 use clap::Parser;
-use tokio_postgres::Error;
+use tokio_postgres::{Client, Error};
 
-use std::{fs, path::Path};
+use std::{collections::HashMap, fs, path::Path};
 
-use tracing::info;
+use tracing::{error, info};
 use tracing_appender::rolling;
 use tracing_subscriber::fmt::layer;
 use tracing_subscriber::prelude::*;
 
-use core::{log, postgres::Postgres};
+use core::{log, postgres::Postgres, AggregationJournal, AggregationPrivateInput, CLog, Log};
+
+mod db;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -23,7 +25,7 @@ struct Args {
     logdir: String,
 
     /// Log file name
-    #[clap(long, default_value = "merger_prover.log")]
+    #[clap(long, default_value = "aggregation_prover")]
     logfile: String,
 
     /// Log level
@@ -35,7 +37,12 @@ struct Args {
     receiptdir: String,
 
     /// Output file path to save the receipt.
-    #[clap(short = 'r', long, value_parser, default_value = "merger_receipt.bin")]
+    #[clap(
+        short = 'r',
+        long,
+        value_parser,
+        default_value = "aggregation_receipt.bin"
+    )]
     receiptfile: String,
 
     /// Total count of internal nodes
@@ -62,6 +69,10 @@ async fn main() -> Result<(), Error> {
 
     tracing_subscriber::registry().with(logger).init();
 
+    /*
+     * Preparing inputs by reading database
+     */
+
     // Postgres client setup
     let postgres = Postgres::new();
     let pg_client = postgres
@@ -69,20 +80,51 @@ async fn main() -> Result<(), Error> {
         .await
         .expect("Failed to connect to Postgres");
 
-    // An executor environment describes the configurations for the zkVM
-    // including program inputs.
-    // A default ExecutorEnv can be created like so:
-    // `let env = ExecutorEnv::builder().build().unwrap();`
-    // However, this `env` does not have any inputs.
-    //
-    // To add guest input to the executor environment, use
-    // ExecutorEnvBuilder::write().
-    // To access this method, you'll need to use ExecutorEnv::builder(), which
-    // creates an ExecutorEnvBuilder. When you're done adding input, call
-    // ExecutorEnvBuilder::build().
+    let prev_seq = db::get_metadata(&pg_client, "last_seq").await;
+    let curr_seq = db::get_curr_seq(&pg_client).await;
 
-    // For example:
-    let input: u32 = 15 * u32::pow(2, 27) + 1;
+    if curr_seq < prev_seq {
+        info!("No new logs to process, exiting.");
+        return Ok(());
+    }
+
+    info!(
+        "Previous sequence number: {}, Current sequence number: {}",
+        prev_seq, curr_seq
+    );
+
+    // Fetch all logs that were written (inserted or updated) since the last sequence number.
+    let all_logs = db::get_all_logs(&pg_client, &args.tables, &prev_seq, &curr_seq).await;
+    assert!(all_logs.len() != 0, "No logs found to process");
+
+    let aggregated_logs = aggregate_logs(&all_logs);
+
+    // Upsert the new logs into the database
+    let upserted_indices = upsert_clogs(&pg_client, &aggregated_logs).await;
+    info!(
+        "Updated Merkle tree indices: {}",
+        upserted_indices
+            .iter()
+            .map(|n| n.to_string())
+            .collect::<Vec<String>>()
+            .join(", ")
+    );
+
+    db::put_metadata(&pg_client, "last_seq", curr_seq).await;
+    info!("Updated last_seq in DB metadata to {}", curr_seq);
+
+    let clogs = db::get_clogs(&pg_client).await;
+
+    let input = AggregationPrivateInput {
+        all_logs: all_logs,    // Vec<Vec<Log>>, all the logs from all nodes
+        diff: aggregated_logs, // HashMap<i32, CLog>, new logs in hashmap
+        clogs: clogs,          // Vec<CLog>, all the clogs in the database
+    };
+
+    /*
+     * Proof generation
+     */
+
     let env = ExecutorEnv::builder()
         .write(&input)
         .unwrap()
@@ -96,23 +138,72 @@ async fn main() -> Result<(), Error> {
     // This struct contains the receipt along with statistics about execution of the guest
     let prove_info = prover.prove(env, VNT_ZKP_ELF).unwrap();
 
-    // extract the receipt.
+    /*
+     * Receipt file output
+     */
+
+    // Extract the receipt.
     let receipt = prove_info.receipt;
+
+    let journal: AggregationJournal = receipt.journal.decode().expect("Journal decoding failed");
+    if !journal.success {
+        error!("Proof generation failed due to data corruption!");
+        return Ok(());
+    }
 
     // Output receipt to file
     let receiptdir = Path::new(".").join(&args.receiptdir);
     std::fs::create_dir_all(&receiptdir).expect("Failed to create log directory");
 
-    //let bincode_config = config::legacy();
-    //let encoded_receipt: Vec<u8> = bincode::encode_to_vec(&receipt, bincode_config).unwrap();
     let encoded_receipt = bincode::serialize(&receipt).unwrap();
     let receiptfile = receiptdir.join(&args.receiptfile);
     fs::write(&receiptfile, encoded_receipt).expect("Failed to write receipt");
 
-    info!("Receipt verified successfully!");
+    info!("Receipt wrote to {}", receiptfile.display());
 
     // Make sure all logs are dropped.
     drop(log_guard);
 
     Ok(())
+}
+
+fn aggregate_logs(all_logs: &Vec<Vec<Log>>) -> HashMap<i32, CLog> {
+    let mut aggregated_map = HashMap::<i32, CLog>::new();
+
+    for logs in all_logs {
+        for log in logs {
+            // TODO: change to 5-tup
+            let key = log.flow_id;
+
+            // If key exists, modify it; otherwise, insert a new value
+            aggregated_map
+                .entry(key)
+                .and_modify(|clog: &mut CLog| clog.hop_cnt += log.hop_cnt)
+                .or_insert(CLog::from_log(&log));
+        }
+    }
+
+    aggregated_map
+}
+
+async fn upsert_clogs(client: &Client, diff: &HashMap<i32, CLog>) -> Vec<i32> {
+    let mut merkle_tree_idxs = Vec::new();
+
+    // UPSERT aggregated logs into central logs table
+    for entry in diff {
+        let clog = entry.1;
+
+        match db::upsert_clog(&client, &clog).await {
+            Ok(idx) => {
+                if idx >= 0 {
+                    merkle_tree_idxs.push(idx);
+                }
+            }
+            Err(err) => {
+                error!("Failed to upsert clog: {}", err);
+            }
+        };
+    }
+
+    merkle_tree_idxs
 }

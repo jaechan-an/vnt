@@ -3,8 +3,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 pub mod log;
-pub mod postgres;
 pub mod util;
+
+#[cfg(any(feature = "host", feature = "simulator"))]
+pub mod postgres;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Node {
@@ -27,7 +29,7 @@ impl Node {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Route {
     pub id: i32,
     pub src: i32,
@@ -215,9 +217,9 @@ pub struct Journal {
     pub latency: i32,
 }
 
-/// Private Inputs for Merger
+/// Private Inputs for Aggregation
 #[derive(Debug, Serialize, Deserialize)]
-pub struct MergerPrivateInput {
+pub struct AggregationPrivateInput {
     pub all_logs: Vec<Vec<Log>>,
     pub diff: HashMap<i32, CLog>,
     pub clogs: Vec<CLog>,
@@ -231,7 +233,7 @@ pub struct MergerPrivateInput {
 
 /// Public journal values that will be committed by the metric compute method.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct MergerJournal {
+pub struct AggregationJournal {
     pub success: bool,
     pub root: [u8; 32],
     // pub node_trees: Vec<MerkleTree<Sha256>>,
