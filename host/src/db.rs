@@ -1,6 +1,33 @@
 use tokio_postgres::{Client, Error, Row};
 
 use core::{CLog, Log};
+use tracing::debug;
+
+pub async fn get_logs(client: &Client, node_id: i32) -> Vec<Log> {
+    let query = format!("SELECT * FROM logs_{}", node_id);
+
+    let rows = client
+        .query(query.as_str(), &[])
+        .await
+        .expect("Log fetch failed");
+
+    let mut logs: Vec<Log> = Vec::new();
+    for row in rows {
+        let id: i32 = row.get("id");
+        let flow_id: i32 = row.get("flow_id");
+        let src: i32 = row.get("src");
+        let dst: i32 = row.get("dst");
+        let pred: i32 = row.get("pred");
+        let packet_size: i32 = row.get("packet_size");
+        let hop_cnt: i32 = row.get("hop_cnt");
+
+        let log = Log::new(id, flow_id, src, dst, pred, packet_size, hop_cnt);
+
+        logs.push(log);
+    }
+
+    logs
+}
 
 pub async fn get_metadata(client: &Client, k: &str) -> i64 {
     let query = "select * from metadata where key = $1";
@@ -41,26 +68,24 @@ pub async fn get_curr_seq(client: &Client) -> i64 {
     value
 }
 
-pub async fn next_flow_watermark(client: &Client, last: i32) -> i32 {
-    let query = "SELECT * FROM flows WHERE id >= $1 AND is_done = false ORDER BY id ASC LIMIT 1";
-    let result = client
-        .query_opt(query, &[&last])
-        .await
-        .expect("Watermarker fetch failed");
+pub async fn get_new_logs(
+    client: &Client,
+    num_tables: &i32,
+    prev_seq: &i64,
+    curr_seq: &i64,
+) -> Vec<Vec<Log>> {
+    let mut new_logs: Vec<Vec<Log>> = Vec::new();
 
-    match result {
-        Some(row) => {
-            let id: i32 = row.get("id");
+    for node_id in 0..*num_tables {
+        let logs: Vec<Log> = get_table_new_logs(&client, &node_id, prev_seq, curr_seq).await;
 
-            return id;
-        }
-        None => {
-            return 0;
-        }
+        new_logs.push(logs);
     }
+
+    new_logs
 }
 
-pub async fn get_new_logs(
+async fn get_table_new_logs(
     client: &Client,
     node_id: &i32,
     prev_seq: &i64,
@@ -93,23 +118,6 @@ pub async fn get_new_logs(
     logs
 }
 
-pub async fn get_all_logs(
-    client: &Client,
-    num_tables: &i32,
-    prev_seq: &i64,
-    curr_seq: &i64,
-) -> Vec<Vec<Log>> {
-    let mut all_logs: Vec<Vec<Log>> = Vec::new();
-
-    for node_id in 1..=*num_tables {
-        let logs: Vec<Log> = get_new_logs(&client, &node_id, prev_seq, curr_seq).await;
-
-        all_logs.push(logs);
-    }
-
-    all_logs
-}
-
 pub async fn get_clogs(client: &Client) -> Vec<CLog> {
     let query = format!("SELECT * FROM clogs");
     let rows = client
@@ -126,21 +134,6 @@ pub async fn get_clogs(client: &Client) -> Vec<CLog> {
 }
 
 pub async fn upsert_clog(client: &Client, clog: &CLog) -> Result<i32, Error> {
-    let query = "SELECT * FROM clogs WHERE flow_id = $1";
-
-    let upsert_required = match client.query_opt(query, &[&clog.flow_id]).await {
-        Ok(Some(row)) => {
-            let compare = row_to_clog(&row);
-            !compare.equals(clog)
-        }
-        Ok(None) => true,
-        Err(err) => return Err(err),
-    };
-
-    if !upsert_required {
-        return Ok(-1);
-    }
-
     // UPSERT and return the id (offset of merkle tree)
     let query = "INSERT INTO clogs (flow_id, src, dst, packet_size, hop_cnt, version)
         VALUES ($1, $2, $3, $4, $5, 1)
@@ -165,7 +158,7 @@ pub async fn upsert_clog(client: &Client, clog: &CLog) -> Result<i32, Error> {
 
     let upserted_id: i32 = row.get(0);
 
-    tracing::event!(tracing::Level::TRACE, "[clogs] id: {}", upserted_id);
+    debug!("Upserted CLog with id: {}", upserted_id);
 
     Ok(upserted_id)
 }

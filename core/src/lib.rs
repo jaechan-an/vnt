@@ -220,21 +220,28 @@ pub struct Journal {
 /// Private Inputs for Aggregation
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AggregationPrivateInput {
-    pub all_logs: Vec<Vec<Log>>,
-    pub diff: HashMap<i32, CLog>,
+    /*
+     * All logs from each nodes. Used to calculate the hash value and check
+     * if it's the same with the existing one.
+     */
+    pub logs: Vec<Vec<Log>>,
+
+    /*
+     * New clogs aggregated from all nodes.
+     */
+    pub new_clogs: HashMap<i32, CLog>,
+
+    /*
+     * Entire clogs table, used to calculate the diff of logs.
+     */
     pub clogs: Vec<CLog>,
-    // pub routing_proof: Vec<u8>,
-
-    // pub node_logs: Vec<Vec<Log>>,
-
-    // pub node_trees: Vec<MerkleTree<Sha256>>,
-    // pub node_proofs: Vec<Vec<u8>>,
 }
 
 /// Public journal values that will be committed by the metric compute method.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AggregationJournal {
     pub success: bool,
+    pub tree: Vec<u8>,
     pub root: [u8; 32],
-    // pub node_trees: Vec<MerkleTree<Sha256>>,
+    pub message: String,
 }

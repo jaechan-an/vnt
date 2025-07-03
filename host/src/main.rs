@@ -73,13 +73,16 @@ async fn main() -> Result<(), Error> {
      * Preparing inputs by reading database
      */
 
-    // Postgres client setup
     let postgres = Postgres::new();
     let pg_client = postgres
         .connect()
         .await
         .expect("Failed to connect to Postgres");
 
+    /*
+     * 1. Check if there are new logs to process
+     * 2. Read all logs from database
+     */
     let prev_seq = db::get_metadata(&pg_client, "last_seq").await;
     let curr_seq = db::get_curr_seq(&pg_client).await;
 
@@ -93,14 +96,26 @@ async fn main() -> Result<(), Error> {
         prev_seq, curr_seq
     );
 
+    let mut logs: Vec<Vec<Log>> = Vec::new();
+    let num_tables = args.tables;
+
+    for i in 0..num_tables {
+        let table_logs = db::get_logs(&pg_client, i).await;
+        logs.push(table_logs);
+        info!(
+            "Fetched {} logs from table {}",
+            logs.last().unwrap().len(),
+            i
+        );
+    }
+
     // Fetch all logs that were written (inserted or updated) since the last sequence number.
-    let all_logs = db::get_all_logs(&pg_client, &args.tables, &prev_seq, &curr_seq).await;
-    assert!(all_logs.len() != 0, "No logs found to process");
+    let new_logs = db::get_new_logs(&pg_client, &args.tables, &prev_seq, &curr_seq).await;
+    assert!(new_logs.len() != 0, "No logs found to process");
 
-    let aggregated_logs = aggregate_logs(&all_logs);
+    let aggregated_new_clogs = aggregate_logs(&new_logs);
 
-    // Upsert the new logs into the database
-    let upserted_indices = upsert_clogs(&pg_client, &aggregated_logs).await;
+    let upserted_indices = upsert_clogs(&pg_client, &aggregated_new_clogs).await;
     info!(
         "Updated Merkle tree indices: {}",
         upserted_indices
@@ -110,15 +125,16 @@ async fn main() -> Result<(), Error> {
             .join(", ")
     );
 
+    // Update the last sequence number in the database metadata
     db::put_metadata(&pg_client, "last_seq", curr_seq).await;
     info!("Updated last_seq in DB metadata to {}", curr_seq);
 
     let clogs = db::get_clogs(&pg_client).await;
 
     let input = AggregationPrivateInput {
-        all_logs: all_logs,    // Vec<Vec<Log>>, all the logs from all nodes
-        diff: aggregated_logs, // HashMap<i32, CLog>, new logs in hashmap
-        clogs: clogs,          // Vec<CLog>, all the clogs in the database
+        logs: logs,                      // All the logs from each nodes: Vec<Vec<Log>>
+        new_clogs: aggregated_new_clogs, // New logs in hashmap key by flow_id: HashMap<i32, CLog>
+        clogs: clogs,                    // Entire CLog table: Vec<CLog>
     };
 
     /*
@@ -167,12 +183,15 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
-fn aggregate_logs(all_logs: &Vec<Vec<Log>>) -> HashMap<i32, CLog> {
+/**
+ * Aggregates new logs from all nodes into a single HashMap where the key is the flow_id.
+ * The CLog struct is used to represent the aggregated log.
+ */
+fn aggregate_logs(new_logs: &Vec<Vec<Log>>) -> HashMap<i32 /* flow_id */, CLog> {
     let mut aggregated_map = HashMap::<i32, CLog>::new();
 
-    for logs in all_logs {
+    for logs in new_logs {
         for log in logs {
-            // TODO: change to 5-tup
             let key = log.flow_id;
 
             // If key exists, modify it; otherwise, insert a new value
@@ -186,6 +205,10 @@ fn aggregate_logs(all_logs: &Vec<Vec<Log>>) -> HashMap<i32, CLog> {
     aggregated_map
 }
 
+/**
+ * Upserts the aggregated logs into the central logs table and returns the indices of the
+ * Merkle tree entries that were updated.
+ */
 async fn upsert_clogs(client: &Client, diff: &HashMap<i32, CLog>) -> Vec<i32> {
     let mut merkle_tree_idxs = Vec::new();
 

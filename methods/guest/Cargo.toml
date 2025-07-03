@@ -10,6 +10,8 @@ risc0-zkvm = { version = "^2.1.0", default-features = false, features = ['std'] 
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 tracing-appender = { workspace = true }
+bincode = { workspace = true }
+rs_merkle = { workspace = true }
 
 #core = { path = "../../core", features = ["guest"]}
 

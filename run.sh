@@ -7,18 +7,6 @@
 
 #cargo clean
 
-cargo run -j 4 --bin simulator -- --tables=10 --time=600 &
-
-cargo run -j 4 --bin host &
-sleep 120
-
-cargo run -j 4 --bin host &
-sleep 120
-
-cargo run -j 4 --bin host &
-sleep 120
-
-cargo run -j 4 --bin host &
-sleep 120
+cargo run -j 4 --bin simulator -- --tables=10 --time=10
 
 cargo run -j 4 --bin host
