@@ -16,12 +16,6 @@ fn main() {
     println!("Input read in {} cycles", end - start);
 
     /*
-     * 1. Check if the logs are consistent by using the hash value for each logs_i table.
-     * 2. Check if the compute (aggregation) is correct. -- compare with the original compute.
-     * 3. Create a new merkle tree for the diff and return it in the Journal.
-     */
-
-    /*
      * 1. Compute the aggregated logs from the input logs and compare it with the input new_clogs.
      *    - If they match, the aggregation logic is performed trustfully.
      *    - This ensures that the aggregation computation is done correctly.

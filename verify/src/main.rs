@@ -77,13 +77,17 @@ fn main() {
     let _output: u32 = receipt.journal.decode().unwrap();
     info!("Journal successfully verified!");
 
-    /*
-    let journal: MergerJournal = receipt.journal.decode().unwrap();
+    let journal: AggregationJournal = receipt.journal.decode().unwrap();
 
     if !journal.success {
         error!("Journal verification is not successful!");
     }
 
+    info!("message: {}", journal.message);
+    info!("Merkle root: {:?}", journal.root);
+    info!("Merkle tree: {:?}", journal.tree);
+
+    /*
     info!("Journal successfully verified!");
 
     // 1. Check the database if the root is the same.
