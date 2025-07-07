@@ -1,4 +1,4 @@
-use methods::VNT_ZKP_ID;
+use query_methods::QUERY_METHOD_ID;
 
 use risc0_zkvm::Receipt;
 
@@ -9,7 +9,7 @@ use tracing_appender::rolling;
 use tracing_subscriber::fmt::layer;
 use tracing_subscriber::prelude::*;
 
-use core::{log, AggregationJournal};
+use core::{log, QueryJournal};
 
 use std::fs;
 use std::path::Path;
@@ -23,7 +23,7 @@ struct Args {
     logdir: String,
 
     /// Log file name
-    #[clap(long, default_value = "verify")]
+    #[clap(long, default_value = "query_verify")]
     logfile: String,
 
     /// Log level
@@ -35,12 +35,7 @@ struct Args {
     receiptdir: String,
 
     /// Output file path to save the receipt.
-    #[clap(
-        short = 'r',
-        long,
-        value_parser,
-        default_value = "aggregation_prover.bin"
-    )]
+    #[clap(short = 'r', long, value_parser, default_value = "query.bin")]
     receiptfile: String,
 }
 
@@ -73,14 +68,14 @@ fn main() {
 
     // Load and verify the receipt file.
     let receipt: Receipt = bincode::deserialize(&fs::read(&receiptfile).unwrap()).unwrap();
-    receipt.verify(VNT_ZKP_ID).unwrap();
+    receipt.verify(QUERY_METHOD_ID).unwrap();
 
     info!(
         "Receipt verification took {} seconds",
         start.elapsed().as_secs()
     );
 
-    let journal: AggregationJournal = receipt.journal.decode().unwrap();
+    let journal: QueryJournal = receipt.journal.decode().unwrap();
     if !journal.success {
         error!("Journal verification is not successful!");
     }

@@ -35,3 +35,9 @@ host = [
 guest = []
 verify = []
 simulator = []
+query_host = [
+  "dep:tokio",
+  "dep:tokio-postgres",
+]
+query_guest = []
+query_verify = []

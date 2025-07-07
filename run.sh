@@ -10,3 +10,10 @@
 cargo run -j 4 --bin simulator -- --tables=10 --time=10
 
 cargo run -j 4 --bin host
+
+cargo run --bin verify
+
+cargo run --bin query_host
+
+cargo run --bin query_verify
+

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["core", "host", "methods", "methods/guest", "verify", "simulator"]
+members = ["core", "host", "methods", "methods/guest", "verify", "simulator", "query_host", "query_methods", "query_methods/guest", "query_verify"]
 
 # Common dependencies for the workspace
 [workspace.dependencies]

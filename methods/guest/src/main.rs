@@ -6,7 +6,6 @@ use hex;
 use rs_merkle::{Hasher, MerkleTree};
 use sha2;
 use sha2::Digest;
-use std::collections::HashMap;
 
 fn main() {
     let mut start = env::cycle_count();
@@ -73,10 +72,7 @@ fn main() {
         let mut indices_to_prove: Vec<usize> = Vec::new();
         let mut leaves_to_prove: Vec<[u8; 32]> = Vec::new();
 
-        for (flow_id, clog) in &input.modified_old {
-            let serialized_clog = bincode::serialize(clog).unwrap();
-            let hash = rs_merkle::algorithms::Sha256::hash(&serialized_clog);
-
+        for (_flow_id, clog) in &input.modified_old {
             let idx = util::id_to_idx(clog.id);
 
             indices_to_prove.push(idx);
@@ -104,7 +100,7 @@ fn main() {
 
     let mut leaves = prev_tree.leaves().unwrap_or_else(|| vec![]);
 
-    for (flow_id, clog) in &input.modified_new {
+    for (_flow_id, clog) in &input.modified_new {
         let leaf = to_leaf(clog);
 
         let idx = util::id_to_idx(clog.id);
@@ -153,43 +149,9 @@ fn main() {
     println!("Journal committed in {} cycles", end - start);
 }
 
-/**
- * Must be same as the one in the host.
- */
-fn aggregate_logs(new_logs: &Vec<Vec<Log>>) -> HashMap<i32 /* flow_id */, CLog> {
-    let mut aggregated_map = HashMap::<i32, CLog>::new();
-
-    for logs in new_logs {
-        for log in logs {
-            let key = log.flow_id;
-
-            // If key exists, modify it; otherwise, insert a new value
-            aggregated_map
-                .entry(key)
-                .and_modify(|clog: &mut CLog| clog.hop_cnt += log.hop_cnt)
-                .or_insert(CLog::from_log(&log));
-        }
-    }
-
-    aggregated_map
-}
-
 fn to_leaf(clog: &CLog) -> [u8; 32] {
     let serialized = bincode::serialize(clog).unwrap();
     rs_merkle::algorithms::Sha256::hash(&serialized)
-}
-
-/**
- * Builds a Merkle tree from the provided CLog entries.
- * Each CLog is serialized to JSON, then hashed using rs_merkle's Sha256.
- */
-fn build_merkle_tree(clogs: &Vec<CLog>) -> MerkleTree<rs_merkle::algorithms::Sha256> {
-    let leaves: Vec<[u8; 32]> = clogs.iter().map(|clog| to_leaf(clog)).collect();
-
-    // Create the Merkle tree from the leaves
-    let merkle_tree = MerkleTree::<rs_merkle::algorithms::Sha256>::from_leaves(&leaves);
-
-    merkle_tree
 }
 
 /**

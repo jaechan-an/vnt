@@ -1,12 +1,11 @@
 [package]
-name = "verify"
+name = "query_verify"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-methods = { path = "../methods" }
 query_methods = { path = "../query_methods" }
-core = { path = "../core" , features = ["verify"]}
+core = { path = "../core" , features = ["query_verify"]}
 
 bincode = { workspace = true }
 clap = { workspace = true }

@@ -260,3 +260,29 @@ pub struct AggregationJournal {
     pub root: [u8; 32],
     pub message: String,
 }
+
+/// Private Inputs for Query
+#[derive(Debug, Serialize, Deserialize)]
+pub struct QueryPrivateInput {
+    /*
+     * All clogs. Used to calculate the query logic.
+     */
+    pub clogs: Vec<CLog>,
+
+    /*
+     * Merkle tree of the aggregation.
+     */
+    pub tree: Vec<u8>,
+
+    /*
+     * The root of the Merkle tree previously calculated.
+     */
+    pub root: [u8; 32],
+}
+
+/// Public journal values that will be committed by the metric compute method.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct QueryJournal {
+    pub success: bool,
+    pub message: String,
+}

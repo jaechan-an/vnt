@@ -84,7 +84,7 @@ async fn main() -> Result<(), Error> {
 
     info!("Starting aggregation prover");
 
-    let mut merkle_tree: MerkleTree<algorithms::Sha256> = MerkleTree::new(); // Placeholder for Merkle tree, if needed
+    let merkle_tree: MerkleTree<algorithms::Sha256> = MerkleTree::new(); // Placeholder for Merkle tree, if needed
 
     /*
      * 1. Check if there are new logs to process
