@@ -244,7 +244,7 @@ pub struct AggregationPrivateInput {
     /*
      * Inserted logs from the current round.
      */
-    pub inserted_new: HashMap<i32, CLog>,
+    pub inserted_new: Vec<CLog>,
 
     /*
      * Merkle tree from the previous round.

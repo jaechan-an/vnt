@@ -168,7 +168,8 @@ async fn main() -> Result<(), Error> {
 
     let modified_old: HashMap<i32, CLog> = get_modified_old_clogs(&old_clogs_map, &new_clogs_map);
     let modified_new: HashMap<i32, CLog> = get_modified_new_clogs(&old_clogs_map, &new_clogs_map);
-    let inserted_new: HashMap<i32, CLog> = get_newly_inserted_clogs(&old_clogs_map, &new_clogs_map);
+    let inserted_new: Vec<CLog> =
+        get_newly_inserted_clogs_sorted_by_id(&old_clogs_map, &new_clogs_map);
 
     assert!(
         modified_old.len() == modified_new.len(),
@@ -188,7 +189,7 @@ async fn main() -> Result<(), Error> {
         hashes: hashes,             // All the hashes for logs table: Vec<[u8; 32]>
         modified_old: modified_old, // Old CLogs that were modified: HashMap<i32, CLog>
         modified_new: modified_new, // New CLogs that were modified: HashMap<i32, CLog>
-        inserted_new: inserted_new, // New CLogs that were inserted: HashMap<i32, CLog>
+        inserted_new: inserted_new, // New CLogs that were inserted, sorted by CLog.id: Vec<CLog>
         tree: serialized_tree,      // Previous Merkle tree: Vec<u8>
     };
 
@@ -329,20 +330,23 @@ fn get_modified_new_clogs(
  * Get newly inserted CLogs that do not exist in the old CLogs map.
  * Fetch only the NEW values.
  */
-fn get_newly_inserted_clogs(
+fn get_newly_inserted_clogs_sorted_by_id(
     old_clogs_map: &HashMap<i32, CLog>,
     new_clogs_map: &HashMap<i32, CLog>,
-) -> HashMap<i32, CLog> {
-    new_clogs_map
+) -> Vec<CLog> {
+    let mut inserted: Vec<CLog> = new_clogs_map
         .iter()
-        .filter_map(|(&flow_id, new_clog)| {
+        .filter_map(|(&flow_id, clog)| {
             if !old_clogs_map.contains_key(&flow_id) {
-                Some((flow_id, new_clog.clone()))
+                Some(clog.clone())
             } else {
                 None
             }
         })
-        .collect()
+        .collect();
+
+    inserted.sort_by_key(|clog| clog.id);
+    inserted
 }
 
 /**

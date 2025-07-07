@@ -113,13 +113,18 @@ fn main() {
         leaves[idx] = leaf;
     }
 
-    for (flow_id, clog) in &input.inserted_new {
+    for clog in &input.inserted_new {
         let leaf = to_leaf(clog);
 
         // Insert the new clog
         leaves.push(leaf);
 
-        assert!(clog.id as usize == leaves.len());
+        assert!(
+            clog.id as usize == leaves.len(),
+            "Inserted clog id {} does not match the expected index {}",
+            clog.id,
+            leaves.len()
+        );
     }
     println!("New leaves {}", leaves.len());
 
