@@ -134,7 +134,8 @@ async fn worker_function(
     let db_routes = db::get_all_routes(&client).await;
 
     let mut routes = vec![vec![Route::default(); num_tables as usize]; num_tables as usize];
-    for route in &db_routes {
+    let routes_slice = &db_routes[0..num_tables as usize];
+    for route in routes_slice {
         let src = route.src as usize;
         let dst = route.dst as usize;
 
@@ -181,7 +182,8 @@ async fn worker_function(
             .await;
 
             // Mimic a random interval
-            let rand_interval = std::time::Duration::from_millis(rand::rng().random_range(5..=10));
+            //let rand_interval = std::time::Duration::from_millis(rand::rng().random_range(5..=10));
+            let rand_interval = std::time::Duration::from_millis(100);
             tokio::time::sleep(rand_interval).await;
         }
 

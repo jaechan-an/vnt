@@ -21,12 +21,17 @@ tracing = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
 tracing-appender = { workspace = true, optional = true }
 
+rs_merkle = { workspace = true, optional = true }
+bincode = { workspace = true, optional = true }
+
 [features]
 default = [
   "dep:dotenv",
   "dep:tracing",
   "dep:tracing-subscriber",
-  "dep:tracing-appender"
+  "dep:tracing-appender",
+  "dep:rs_merkle",
+  "dep:bincode",
 ]
 host = [
   "dep:tokio",

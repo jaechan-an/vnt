@@ -278,6 +278,11 @@ pub struct QueryPrivateInput {
      * The root of the Merkle tree previously calculated.
      */
     pub root: [u8; 32],
+
+    pub src1: i32,
+    pub src2: i32,
+    pub dst1: i32,
+    pub dst2: i32,
 }
 
 /// Public journal values that will be committed by the metric compute method.

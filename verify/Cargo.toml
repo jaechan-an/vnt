@@ -11,6 +11,7 @@ core = { path = "../core" , features = ["verify"]}
 bincode = { workspace = true }
 clap = { workspace = true }
 risc0-zkvm = { workspace = true }
+rs_merkle = { workspace = true }
 
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

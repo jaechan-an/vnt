@@ -13,7 +13,7 @@ fn main() {
     // Read the input
     let input: AggregationPrivateInput = env::read();
 
-    let prev_tree = deserialize_merkle_tree(&input.tree);
+    let prev_tree = util::deserialize_merkle_tree(&input.tree);
 
     let mut end = env::cycle_count();
 
@@ -134,7 +134,7 @@ fn main() {
     // Step 4. Output the journal with the success status, Merkle tree, and root.
     start = env::cycle_count();
 
-    let bytes = serialize_merkle_tree(&new_tree);
+    let bytes = util::serialize_merkle_tree(&new_tree);
     let root = new_tree.root().unwrap();
 
     let journal = AggregationJournal {
@@ -153,21 +153,6 @@ fn main() {
 fn to_leaf(clog: &CLog) -> [u8; 32] {
     let serialized = bincode::serialize(clog).unwrap();
     rs_merkle::algorithms::Sha256::hash(&serialized)
-}
-
-/**
- * Serialize the Merkle tree to bytes. Manually serialize the leaf hashes.
- */
-fn serialize_merkle_tree(tree: &MerkleTree<rs_merkle::algorithms::Sha256>) -> Vec<u8> {
-    bincode::serialize(&tree.leaves()).unwrap_or_else(|_| vec![])
-}
-
-/**
- * Deserialize the Merkle tree from bytes. Manually deserialize the leaf hashes.
- */
-fn deserialize_merkle_tree(bytes: &[u8]) -> MerkleTree<rs_merkle::algorithms::Sha256> {
-    let leaves: Vec<[u8; 32]> = bincode::deserialize(bytes).unwrap_or_else(|_| vec![]);
-    MerkleTree::<rs_merkle::algorithms::Sha256>::from_leaves(&leaves)
 }
 
 /**

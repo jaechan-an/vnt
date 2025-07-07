@@ -9,7 +9,7 @@ use tracing_appender::rolling;
 use tracing_subscriber::fmt::layer;
 use tracing_subscriber::prelude::*;
 
-use core::{log, AggregationJournal};
+use core::{log, util, AggregationJournal};
 
 use std::fs;
 use std::path::Path;
@@ -85,6 +85,12 @@ fn main() {
         error!("Journal verification is not successful!");
     }
 
+    let root = journal.root;
+    let tree_bytes = journal.tree;
+    let tree = util::deserialize_merkle_tree(&tree_bytes);
+
+    info!("Merkle tree root: {:?}", root);
+    info!("Merkle tree size: {}", tree.leaves_len());
     info!("Message: {}", journal.message);
 
     // Make sure all logs are dropped.

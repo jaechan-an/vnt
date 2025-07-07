@@ -3,12 +3,12 @@ use risc0_zkvm::guest::env;
 use core::{util, CLog, QueryJournal, QueryPrivateInput};
 
 use bincode;
-use rs_merkle::{Hasher, MerkleTree};
+use rs_merkle::Hasher;
 
 fn main() {
     let input: QueryPrivateInput = env::read();
 
-    let tree = deserialize_merkle_tree(&input.tree);
+    let tree = util::deserialize_merkle_tree(&input.tree);
 
     // Filter all logs that match the query
     // Example:
@@ -20,8 +20,13 @@ fn main() {
     let mut indices_to_prove: Vec<usize> = Vec::new();
     let mut leaves_to_prove: Vec<[u8; 32]> = Vec::new();
 
+    let src1 = input.src1;
+    let dst1 = input.dst1;
+    let src2 = input.src2;
+    let dst2 = input.dst2;
+
     for clog in &input.clogs {
-        if clog.src == 0 && clog.dst == 6 {
+        if clog.src == src1 && clog.dst == dst1 {
             sum_hop_cnt[0] += clog.hop_cnt;
 
             let idx = util::id_to_idx(clog.id);
@@ -30,7 +35,7 @@ fn main() {
             leaves_to_prove.push(to_leaf(clog));
         }
 
-        if clog.src == 3 && clog.dst == 9 {
+        if clog.src == src2 && clog.dst == dst2 {
             sum_hop_cnt[1] += clog.hop_cnt;
 
             let idx = util::id_to_idx(clog.id);
@@ -41,7 +46,7 @@ fn main() {
     }
 
     let merkle_proof = tree.proof(&indices_to_prove);
-    let merkle_root = tree.root().unwrap_or_else(|| None);
+    let merkle_root = tree.root().unwrap_or_else(|| [0; 32]);
 
     assert!(merkle_proof.verify(
         merkle_root,
@@ -52,8 +57,8 @@ fn main() {
 
     // Calculate the difference
     let message = format!(
-        "src 0 to dst 6 hop_cnt: {}, src 3 to dst 9 hop_cnt: {}",
-        sum_hop_cnt[0], sum_hop_cnt[1]
+        "src {} to dst {} hop_cnt: {}, src {} to dst {} hop_cnt: {}",
+        src1, dst1, sum_hop_cnt[0], src2, dst2, sum_hop_cnt[1]
     );
 
     let output = QueryJournal {
@@ -62,14 +67,6 @@ fn main() {
     };
 
     env::commit(&output);
-}
-
-/**
- * Deserialize the Merkle tree from bytes. Manually deserialize the leaf hashes.
- */
-fn deserialize_merkle_tree(bytes: &[u8]) -> MerkleTree<rs_merkle::algorithms::Sha256> {
-    let leaves: Vec<[u8; 32]> = bincode::deserialize(bytes).unwrap_or_else(|_| vec![]);
-    MerkleTree::<rs_merkle::algorithms::Sha256>::from_leaves(&leaves)
 }
 
 fn to_leaf(clog: &CLog) -> [u8; 32] {

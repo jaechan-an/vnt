@@ -14,7 +14,7 @@ use tracing_appender::rolling;
 use tracing_subscriber::fmt::layer;
 use tracing_subscriber::prelude::*;
 
-use core::{log, postgres::Postgres, AggregationJournal, AggregationPrivateInput, CLog, Log};
+use core::{log, postgres::Postgres, util, AggregationJournal, AggregationPrivateInput, CLog, Log};
 
 mod db;
 
@@ -182,7 +182,7 @@ async fn main() -> Result<(), Error> {
         inserted_new.len()
     );
 
-    let serialized_tree = serialize_merkle_tree(&merkle_tree);
+    let serialized_tree = util::serialize_merkle_tree(&merkle_tree);
 
     let input = AggregationPrivateInput {
         logs: logs,                 // All the logs from each nodes: Vec<Vec<Log>>
@@ -234,8 +234,8 @@ async fn main() -> Result<(), Error> {
     info!("Receipt wrote to {}", receiptfile.display());
 
     info!(
-        "Aggregation prover completed in {:.2?} sec",
-        start.elapsed().as_secs()
+        "Aggregation prover completed in {:.2?} ms",
+        start.elapsed().as_millis()
     );
 
     // Make sure all logs are dropped.
@@ -347,11 +347,4 @@ fn get_newly_inserted_clogs_sorted_by_id(
 
     inserted.sort_by_key(|clog| clog.id);
     inserted
-}
-
-/**
- * Serialize the Merkle tree to bytes. Manually serialize the leaf hashes.
- */
-fn serialize_merkle_tree(tree: &MerkleTree<rs_merkle::algorithms::Sha256>) -> Vec<u8> {
-    bincode::serialize(&tree.leaves()).unwrap_or_else(|_| vec![])
 }

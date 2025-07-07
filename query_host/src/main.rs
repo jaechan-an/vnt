@@ -3,12 +3,10 @@ use query_methods::QUERY_METHOD_ELF;
 use risc0_zkvm::{default_prover, ExecutorEnv, Receipt};
 
 use clap::Parser;
-use rs_merkle::{algorithms::Sha256, MerkleTree};
 use tokio_postgres::Error;
 
 use std::{fs, path::Path, time::Instant};
 
-use hex;
 use tracing::{error, info};
 use tracing_appender::rolling;
 use tracing_subscriber::fmt::layer;
@@ -53,6 +51,18 @@ struct Args {
     /// Total count of internal nodes
     #[clap(short = 'n', long, value_parser, default_value_t = 10, value_parser = clap::value_parser!(i32).range(1..=10))]
     tables: i32,
+
+    #[clap(long, default_value_t = 0)]
+    src1: i32,
+
+    #[clap(long, default_value_t = 1)]
+    dst1: i32,
+
+    #[clap(long, default_value_t = 1)]
+    src2: i32,
+
+    #[clap(long, default_value_t = 0)]
+    dst2: i32,
 }
 
 #[tokio::main]
@@ -117,9 +127,11 @@ async fn main() -> Result<(), Error> {
         clogs: clogs,                   // Aggregated logs: Vec<CLog>
         tree: aggregation_journal.tree, // Aggregation Merkle tree: Vec<u8>
         root: aggregation_journal.root, // Aggregation Merkle root: Vec<u8>
+        src1: args.src1,                // Source 1 for query
+        dst1: args.dst1,                // Destination 1 for query
+        src2: args.src2,                // Source 1 for query
+        dst2: args.dst2,                // Destination 1 for query
     };
-
-    let tree = deserialize_merkle_tree(&input.tree);
 
     let env = ExecutorEnv::builder()
         .write(&input)
@@ -148,20 +160,12 @@ async fn main() -> Result<(), Error> {
     info!("Receipt wrote to {}", receiptfile.display());
 
     info!(
-        "Query prover completed in {:.2?} sec",
-        start.elapsed().as_secs()
+        "Query prover completed in {:.2?} ms",
+        start.elapsed().as_millis()
     );
 
     // Make sure all logs are dropped.
     drop(log_guard);
 
     Ok(())
-}
-
-/**
- * Deserialize the Merkle tree from bytes. Manually deserialize the leaf hashes.
- */
-fn deserialize_merkle_tree(bytes: &[u8]) -> MerkleTree<rs_merkle::algorithms::Sha256> {
-    let leaves: Vec<[u8; 32]> = bincode::deserialize(bytes).unwrap_or_else(|_| vec![]);
-    MerkleTree::<rs_merkle::algorithms::Sha256>::from_leaves(&leaves)
 }
