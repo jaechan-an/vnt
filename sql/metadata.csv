@@ -1,3 +1,4 @@
 key,value
 last_flow_watermark,0
 last_seq,0
+last_logs_hash_round,0

@@ -123,7 +123,7 @@ impl Log {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct CLog {
     pub id: i32,
     pub flow_id: i32,
@@ -165,7 +165,7 @@ impl CLog {
 
     pub fn to_string(&self) -> String {
         format!(
-            "{}|{}|{}|{}|{}|{}|{}",
+            "id: {}, flow_id: {}, src: {}, dst: {}, packet_size: {}, hop_cnt: {}, version: {}",
             self.id, self.flow_id, self.src, self.dst, self.packet_size, self.hop_cnt, self.version
         )
     }
@@ -227,14 +227,29 @@ pub struct AggregationPrivateInput {
     pub logs: Vec<Vec<Log>>,
 
     /*
-     * New clogs aggregated from all nodes.
+     * All hashes for logs table. This is used to check if the logs are authentic.
      */
-    pub new_clogs: HashMap<i32, CLog>,
+    pub hashes: Vec<[u8; 32]>,
 
     /*
-     * Entire clogs table, used to calculate the diff of logs.
+     * Modified logs from the previous round. The BEFORE image.
      */
-    pub clogs: Vec<CLog>,
+    pub modified_old: HashMap<i32, CLog>,
+
+    /*
+     * Modified logs from the current round. The AFTER image.
+     */
+    pub modified_new: HashMap<i32, CLog>,
+
+    /*
+     * Inserted logs from the current round.
+     */
+    pub inserted_new: HashMap<i32, CLog>,
+
+    /*
+     * Merkle tree from the previous round.
+     */
+    pub tree: Vec<u8>,
 }
 
 /// Public journal values that will be committed by the metric compute method.

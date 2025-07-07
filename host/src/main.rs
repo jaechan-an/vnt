@@ -4,6 +4,7 @@ use methods::VNT_ZKP_ELF;
 use risc0_zkvm::{default_prover, ExecutorEnv};
 
 use clap::Parser;
+use rs_merkle::{algorithms, MerkleTree};
 use tokio_postgres::{Client, Error};
 
 use std::{collections::HashMap, fs, path::Path, time::Instant};
@@ -83,10 +84,16 @@ async fn main() -> Result<(), Error> {
 
     info!("Starting aggregation prover");
 
+    let mut merkle_tree: MerkleTree<algorithms::Sha256> = MerkleTree::new(); // Placeholder for Merkle tree, if needed
+
     /*
      * 1. Check if there are new logs to process
-     * 2. Read all logs from database
+     * 2. Read all logs and hashes from database
+     * 3. Read all new logs that were written since the last sequence number
+     * 4. Calculate the diff between the aggregation of new logs and the existing CLogs
      */
+
+    // Step 1. Check if there are new logs to process
     let prev_seq = db::get_metadata(&pg_client, "last_seq").await;
     let curr_seq = db::get_curr_seq(&pg_client).await;
 
@@ -95,13 +102,12 @@ async fn main() -> Result<(), Error> {
         return Ok(());
     }
 
-    info!(
-        "Previous sequence number: {}, Current sequence number: {}",
-        prev_seq, curr_seq
-    );
-
+    // Step 2. Read all logs and hashes from database
     let mut logs: Vec<Vec<Log>> = Vec::new();
+    let mut hashes: Vec<[u8; 32]> = Vec::new();
     let num_tables = args.tables;
+
+    let hash_round = db::get_metadata(&pg_client, "last_logs_hash_round").await as i32;
 
     for i in 0..num_tables {
         let table_logs = db::get_logs(&pg_client, i).await;
@@ -111,21 +117,32 @@ async fn main() -> Result<(), Error> {
             logs.last().unwrap().len(),
             i
         );
+
+        let table_hash = db::get_hash(&pg_client, i, hash_round).await;
+        hashes.push(table_hash);
     }
     info!(
         "Total logs fetched from all tables: {}",
         logs.iter().map(|l| l.len()).sum::<usize>()
     );
 
-    // Fetch all logs that were written (inserted or updated) since the last sequence number.
+    // Step 3. Read all new logs that were written since the last sequence number
+    info!(
+        "Previous sequence number: {}, Current sequence number: {}",
+        prev_seq, curr_seq
+    );
+
     let new_logs = db::get_new_logs(&pg_client, &args.tables, &prev_seq, &curr_seq).await;
     assert!(new_logs.len() != 0, "No logs found to process");
 
-    let aggregated_new_clogs = aggregate_logs(&new_logs);
+    let new_aggregated_clogs = aggregate_logs(&new_logs);
 
-    let upserted_indices = upsert_clogs(&pg_client, &aggregated_new_clogs).await;
+    // Must get before upsert
+    let old_clogs: Vec<CLog> = db::get_clogs(&pg_client).await;
+
+    let upserted_indices = upsert_clogs(&pg_client, &new_aggregated_clogs).await;
     info!(
-        "Updated Merkle tree indices: {}",
+        "Updating Merkle tree indices: {}",
         upserted_indices
             .iter()
             .map(|n| n.to_string())
@@ -137,12 +154,42 @@ async fn main() -> Result<(), Error> {
     db::put_metadata(&pg_client, "last_seq", curr_seq).await;
     info!("Updated last_seq in DB metadata to {}", curr_seq);
 
-    let clogs = db::get_clogs(&pg_client).await;
+    let new_clogs: Vec<CLog> = db::get_clogs(&pg_client).await;
+
+    // Calculate the diffs
+    let old_clogs_map: HashMap<i32, CLog> = old_clogs
+        .iter()
+        .map(|clog| (clog.flow_id, clog.clone()))
+        .collect();
+    let new_clogs_map: HashMap<i32, CLog> = new_clogs
+        .iter()
+        .map(|clog| (clog.flow_id, clog.clone()))
+        .collect();
+
+    let modified_old: HashMap<i32, CLog> = get_modified_old_clogs(&old_clogs_map, &new_clogs_map);
+    let modified_new: HashMap<i32, CLog> = get_modified_new_clogs(&old_clogs_map, &new_clogs_map);
+    let inserted_new: HashMap<i32, CLog> = get_newly_inserted_clogs(&old_clogs_map, &new_clogs_map);
+
+    assert!(
+        modified_old.len() == modified_new.len(),
+        "Modified old and new CLogs should have the same length"
+    );
+
+    info!(
+        "CLogs -> Updated: {}, Inserted: {}",
+        modified_old.len(),
+        inserted_new.len()
+    );
+
+    let serialized_tree = serialize_merkle_tree(&merkle_tree);
 
     let input = AggregationPrivateInput {
-        logs: logs,                      // All the logs from each nodes: Vec<Vec<Log>>
-        new_clogs: aggregated_new_clogs, // New logs in hashmap key by flow_id: HashMap<i32, CLog>
-        clogs: clogs,                    // Entire CLog table: Vec<CLog>
+        logs: logs,                 // All the logs from each nodes: Vec<Vec<Log>>
+        hashes: hashes,             // All the hashes for logs table: Vec<[u8; 32]>
+        modified_old: modified_old, // Old CLogs that were modified: HashMap<i32, CLog>
+        modified_new: modified_new, // New CLogs that were modified: HashMap<i32, CLog>
+        inserted_new: inserted_new, // New CLogs that were inserted: HashMap<i32, CLog>
+        tree: serialized_tree,      // Previous Merkle tree: Vec<u8>
     };
 
     /*
@@ -197,7 +244,7 @@ async fn main() -> Result<(), Error> {
 }
 
 /**
- * Aggregates new logs from all nodes into a single HashMap where the key is the flow_id.
+ * Aggregates logs from all nodes into a single HashMap where the key is the flow_id.
  * The CLog struct is used to represent the aggregated log.
  */
 fn aggregate_logs(new_logs: &Vec<Vec<Log>>) -> HashMap<i32 /* flow_id */, CLog> {
@@ -242,4 +289,65 @@ async fn upsert_clogs(client: &Client, diff: &HashMap<i32, CLog>) -> Vec<i32> {
     }
 
     merkle_tree_idxs
+}
+
+/**
+ * Calculate the difference between the aggregated logs and the existing CLogs.
+ * Fetch only the OLD values.
+ */
+fn get_modified_old_clogs(
+    old_clogs_map: &HashMap<i32, CLog>,
+    new_clogs_map: &HashMap<i32, CLog>,
+) -> HashMap<i32, CLog> {
+    old_clogs_map
+        .iter()
+        .filter_map(|(&flow_id, old_clog)| match new_clogs_map.get(&flow_id) {
+            Some(new_clog) if old_clog != new_clog => Some((flow_id, old_clog.clone())),
+            _ => None,
+        })
+        .collect()
+}
+
+/**
+ * Calculate the difference between the aggregated logs and the existing CLogs.
+ * Fetch only the UPDATED values.
+ */
+fn get_modified_new_clogs(
+    old_clogs_map: &HashMap<i32, CLog>,
+    new_clogs_map: &HashMap<i32, CLog>,
+) -> HashMap<i32, CLog> {
+    new_clogs_map
+        .iter()
+        .filter_map(|(&flow_id, new_clog)| match old_clogs_map.get(&flow_id) {
+            Some(old_clog) if old_clog != new_clog => Some((flow_id, new_clog.clone())),
+            _ => None,
+        })
+        .collect()
+}
+
+/**
+ * Get newly inserted CLogs that do not exist in the old CLogs map.
+ * Fetch only the NEW values.
+ */
+fn get_newly_inserted_clogs(
+    old_clogs_map: &HashMap<i32, CLog>,
+    new_clogs_map: &HashMap<i32, CLog>,
+) -> HashMap<i32, CLog> {
+    new_clogs_map
+        .iter()
+        .filter_map(|(&flow_id, new_clog)| {
+            if !old_clogs_map.contains_key(&flow_id) {
+                Some((flow_id, new_clog.clone()))
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+/**
+ * Serialize the Merkle tree to bytes. Manually serialize the leaf hashes.
+ */
+fn serialize_merkle_tree(tree: &MerkleTree<rs_merkle::algorithms::Sha256>) -> Vec<u8> {
+    bincode::serialize(&tree.leaves()).unwrap_or_else(|_| vec![])
 }

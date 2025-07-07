@@ -237,5 +237,7 @@ async fn hash_logs(
         db::put_hash(&client, i, hasher.finalize().into(), round).await;
     }
 
+    db::put_metadata(&client, "last_logs_hash_round", round.into()).await;
+
     Ok(())
 }

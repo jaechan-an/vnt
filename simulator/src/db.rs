@@ -123,3 +123,15 @@ pub async fn put_hash(client: &Client, node_id: i32, hash: [u8; 32], round: i32)
         node_id, hash
     );
 }
+
+pub async fn put_metadata(client: &Client, k: &str, v: i64) {
+    let query = "INSERT INTO metadata (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2";
+    // let query = "UPDATE metadata SET value = $1 WHERE key = $2";
+
+    let rows_affected = client
+        .execute(query, &[&k, &v])
+        .await
+        .expect("UPSERT metadata");
+
+    assert_eq!(rows_affected, 1, "Expected exactly one row to be updated");
+}

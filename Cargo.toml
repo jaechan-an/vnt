@@ -17,6 +17,7 @@ rand = "0.9.1"
 rs_merkle = "1.5.0"
 risc0-zkvm = "^2.1.0"
 sha2 = "0.10.9"
+hex = "0.4.3"
 
 # Always optimize; building and running the guest takes much longer without optimization.
 [profile.dev]

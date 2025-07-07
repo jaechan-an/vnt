@@ -163,6 +163,22 @@ pub async fn upsert_clog(client: &Client, clog: &CLog) -> Result<i32, Error> {
     Ok(upserted_id)
 }
 
+pub async fn get_hash(client: &Client, node_id: i32, round: i32) -> [u8; 32] {
+    let query = "SELECT * FROM logs_hashes WHERE node_id = $1 AND round = $2";
+    let row = client
+        .query_one(query, &[&node_id, &round])
+        .await
+        .expect("logs_hashes fetch failed");
+
+    //let id: i32 = row.get("id");
+    //let node_id: i32 = row.get("node_id");
+    let bytes: &[u8] = row.get("hash");
+    let hash: &[u8; 32] = bytes.try_into().expect("Hash conversion failed");
+    //let round: i32 = row.get("round");
+
+    *hash
+}
+
 // TODO: move to core module
 fn row_to_clog(row: &Row) -> CLog {
     let id: i32 = row.get("id");
