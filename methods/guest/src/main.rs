@@ -25,7 +25,13 @@ fn main() {
      *      be verified.
      * 3. Return the Merkle root in the journal.
      */
+
+    start = env::cycle_count();
+
     let aggregated_new_clogs = aggregate_logs(&input.logs);
+
+    end = env::cycle_count();
+    println!("Logs aggregated in {} cycles", end - start);
 
     // Check if aggregated_new_clogs is the same as input.new_clogs
     let success = aggregated_new_clogs == input.new_clogs;

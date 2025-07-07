@@ -10,6 +10,7 @@ dotenv = { workspace = true }
 clap = { workspace = true }
 rand = { workspace = true }
 serde = { workspace = true }
+bincode = { workspace = true }
 
 tokio = { workspace = true }
 tokio-postgres = { workspace = true }
@@ -19,5 +20,5 @@ tracing-subscriber = { workspace = true }
 tracing-appender = { workspace = true }
 
 rs_merkle = { workspace = true }
-#sha2 = { workspace = true }
+sha2 = { workspace = true }
 

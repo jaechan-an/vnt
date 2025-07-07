@@ -1,4 +1,4 @@
-use core::Route;
+use core::{Log, Route};
 use tokio_postgres::Client;
 use tracing::debug;
 
@@ -23,6 +23,28 @@ pub async fn get_all_routes(client: &Client) -> Vec<Route> {
     }
 
     routes
+}
+
+pub async fn get_logs(client: &Client, curr: i32) -> Vec<Log> {
+    let query = format!("SELECT * FROM logs_{}", curr);
+    let rows = client.query(query.as_str(), &[]).await.expect("Wrong logs");
+
+    let mut logs = Vec::new();
+    for row in rows {
+        let id: i32 = row.get("id");
+        let flow_id: i32 = row.get("flow_id");
+        let src: i32 = row.get("src");
+        let dst: i32 = row.get("dst");
+        let pred: i32 = row.get("pred");
+        let packet_size: i32 = row.get("packet_size");
+        let hop_cnt: i32 = row.get("hop_cnt");
+
+        let log = Log::new(id, flow_id, src, dst, pred, packet_size, hop_cnt);
+
+        logs.push(log);
+    }
+
+    logs
 }
 
 pub async fn insert_log(
@@ -84,4 +106,20 @@ pub async fn update_flow(client: &Client, flow_id: i32) {
     assert_eq!(rows_affected, 1, "Expected exactly one row to be updated");
 
     debug!("Updated flow: id: {}, is_done: true", flow_id);
+}
+
+pub async fn put_hash(client: &Client, node_id: i32, hash: [u8; 32], round: i32) {
+    let query = "INSERT INTO logs_hashes (node_id, hash, round) VALUES ($1, $2, $3)";
+
+    let rows_affected = client
+        .execute(query, &[&node_id, &hash.as_ref(), &round])
+        .await
+        .expect("Insertion error in hashes");
+
+    assert_eq!(rows_affected, 1, "Expected exactly one row to be updated");
+
+    debug!(
+        "Inserted/Updated hash for node_id: {}, hash: {:?}",
+        node_id, hash
+    );
 }

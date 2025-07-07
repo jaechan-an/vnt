@@ -16,6 +16,7 @@ bincode = "1.3"
 rand = "0.9.1"
 rs_merkle = "1.5.0"
 risc0-zkvm = "^2.1.0"
+sha2 = "0.10.9"
 
 # Always optimize; building and running the guest takes much longer without optimization.
 [profile.dev]

@@ -4,7 +4,7 @@ use rand::Rng;
 use std::path::Path;
 use std::sync::Arc;
 
-use tokio::task::JoinSet;
+use tokio::task;
 use tokio_postgres::Client;
 
 use tracing::info;
@@ -15,6 +15,8 @@ use tracing_subscriber::prelude::*;
 use core::log;
 use core::postgres::Postgres;
 use core::Route;
+
+use sha2::{Digest, Sha256};
 
 mod db;
 
@@ -66,7 +68,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let postgres = Postgres::new();
     let pg_client = Arc::new(postgres.connect().await?);
 
-    let mut workers = JoinSet::new();
+    let mut workers = task::JoinSet::new();
 
     // Create workers that simulate the network traffic
     for id in 0..args.tables {
@@ -83,8 +85,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
+    // Create a worker that generates hashes for the logs
+    let round: i32;
+    {
+        let num_tables = args.tables;
+        let client = Arc::clone(&pg_client);
+        let duration = std::time::Duration::from_secs(args.time);
+
+        let join = task::spawn(async move {
+            info!("Starting hash generation");
+
+            let round = hash_generation(num_tables, &client, duration).await;
+
+            round.unwrap_or(0)
+        });
+
+        round = join.await.unwrap();
+    }
+
     while let Some(res) = workers.join_next().await {
         assert!(res.is_ok(), "Worker task failed");
+    }
+
+    // Final hash generation
+    {
+        let num_tables = args.tables;
+        let client = Arc::clone(&pg_client);
+
+        let _ = hash_logs(num_tables, &client, round)
+            .await
+            .expect("Failed to hash logs");
     }
 
     info!("All workers have completed their tasks");
@@ -160,4 +190,52 @@ async fn worker_function(
 
     // Return the current thread ID as usize
     Ok(id as usize)
+}
+
+async fn hash_generation(
+    num_tables: i32,
+    client: &Client,
+    duration: std::time::Duration,
+) -> Result<i32, Box<dyn std::error::Error>> {
+    let now = std::time::Instant::now();
+    let sleep_time = std::time::Duration::from_secs(5);
+
+    let mut round: i32 = 0;
+    while now.elapsed() <= duration {
+        let _ = hash_logs(num_tables, client, round).await;
+
+        tokio::time::sleep(sleep_time).await;
+
+        round += 1;
+    }
+
+    Ok(round)
+}
+
+async fn hash_logs(
+    num_tables: i32,
+    client: &Client,
+    round: i32,
+) -> Result<(), Box<dyn std::error::Error>> {
+    info!("Generating hash for all logs, round: {}", round);
+
+    for i in 0..num_tables {
+        let logs = db::get_logs(&client, i).await;
+
+        if logs.is_empty() {
+            info!("No logs found for table {}", i);
+            continue;
+        }
+
+        // Generate hash from all the logs. We want a single hash for all logs in the table.
+        let mut hasher = Sha256::new();
+        for log in logs {
+            let serialized = bincode::serialize(&log).unwrap();
+            hasher.update(serialized);
+        }
+
+        db::put_hash(&client, i, hasher.finalize().into(), round).await;
+    }
+
+    Ok(())
 }
