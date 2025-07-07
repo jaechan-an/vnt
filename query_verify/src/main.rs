@@ -71,8 +71,8 @@ fn main() {
     receipt.verify(QUERY_METHOD_ID).unwrap();
 
     info!(
-        "Receipt verification took {} seconds",
-        start.elapsed().as_secs()
+        "Receipt verification took {} ms",
+        start.elapsed().as_millis()
     );
 
     let journal: QueryJournal = receipt.journal.decode().unwrap();

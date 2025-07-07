@@ -125,7 +125,8 @@ fn main() {
     println!("New leaves {}", leaves.len());
 
     // Build the new Merkle tree from the updated leaves
-    let new_tree = MerkleTree::<rs_merkle::algorithms::Sha256>::from_leaves(&leaves);
+    let mut new_tree = MerkleTree::<rs_merkle::algorithms::Sha256>::from_leaves(&leaves);
+    new_tree.commit();
 
     end = env::cycle_count();
     println!("New Merkle tree built in {} cycles", end - start);

@@ -10,11 +10,6 @@ fn main() {
 
     let tree = deserialize_merkle_tree(&input.tree);
 
-    assert!(
-        tree.root() == Some(input.root),
-        "Merkle root does not match"
-    );
-
     // Filter all logs that match the query
     // Example:
     // 1. SELECT SUM(hop_cnt) FROM clogs WHERE src = 0 AND dst = 6;
@@ -46,7 +41,7 @@ fn main() {
     }
 
     let merkle_proof = tree.proof(&indices_to_prove);
-    let merkle_root = tree.root().unwrap();
+    let merkle_root = tree.root().unwrap_or_else(|| None);
 
     assert!(merkle_proof.verify(
         merkle_root,

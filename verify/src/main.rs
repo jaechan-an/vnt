@@ -39,7 +39,7 @@ struct Args {
         short = 'r',
         long,
         value_parser,
-        default_value = "aggregation_prover.bin"
+        default_value = "aggregation_receipt.bin"
     )]
     receiptfile: String,
 }
@@ -76,8 +76,8 @@ fn main() {
     receipt.verify(VNT_ZKP_ID).unwrap();
 
     info!(
-        "Receipt verification took {} seconds",
-        start.elapsed().as_secs()
+        "Receipt verification took {} ms",
+        start.elapsed().as_millis()
     );
 
     let journal: AggregationJournal = receipt.journal.decode().unwrap();

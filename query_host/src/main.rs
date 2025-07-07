@@ -3,10 +3,12 @@ use query_methods::QUERY_METHOD_ELF;
 use risc0_zkvm::{default_prover, ExecutorEnv, Receipt};
 
 use clap::Parser;
+use rs_merkle::{algorithms::Sha256, MerkleTree};
 use tokio_postgres::Error;
 
 use std::{fs, path::Path, time::Instant};
 
+use hex;
 use tracing::{error, info};
 use tracing_appender::rolling;
 use tracing_subscriber::fmt::layer;
@@ -117,6 +119,8 @@ async fn main() -> Result<(), Error> {
         root: aggregation_journal.root, // Aggregation Merkle root: Vec<u8>
     };
 
+    let tree = deserialize_merkle_tree(&input.tree);
+
     let env = ExecutorEnv::builder()
         .write(&input)
         .unwrap()
@@ -152,4 +156,12 @@ async fn main() -> Result<(), Error> {
     drop(log_guard);
 
     Ok(())
+}
+
+/**
+ * Deserialize the Merkle tree from bytes. Manually deserialize the leaf hashes.
+ */
+fn deserialize_merkle_tree(bytes: &[u8]) -> MerkleTree<rs_merkle::algorithms::Sha256> {
+    let leaves: Vec<[u8; 32]> = bincode::deserialize(bytes).unwrap_or_else(|_| vec![]);
+    MerkleTree::<rs_merkle::algorithms::Sha256>::from_leaves(&leaves)
 }

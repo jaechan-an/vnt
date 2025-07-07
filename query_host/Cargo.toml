@@ -18,5 +18,6 @@ bincode = { workspace = true }
 tokio = { workspace = true }
 tokio-postgres = { workspace = true }
 rs_merkle = { workspace = true }
+hex = { workspace = true }
 
 core = { path = "../core" , features = ["query_host"]}
