@@ -41,10 +41,6 @@ struct Args {
     #[clap(short = 'n', long, value_parser, default_value_t = 10, value_parser = clap::value_parser!(i32).range(1..=10))]
     tables: i32,
 
-    /// Total running time for the simulator
-    #[clap(short = 't', long, value_parser, default_value_t = 5, value_parser = clap::value_parser!(u64).range(1..=100000))]
-    time: u64,
-
     /// Total records
     #[clap(long, default_value_t = 100)]
     records: u32,
@@ -83,13 +79,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for id in 0..args.tables {
         let num_tables = args.tables;
         let client = Arc::clone(&pg_client);
-        let duration = std::time::Duration::from_secs(args.time);
         let num_records = args.records;
 
         workers.spawn(async move {
             info!("Starting worker for table {}", id);
 
-            let _ = worker_function(id, num_tables, &client, duration, num_records).await;
+            let _ = worker_function(id, num_tables, &client, num_records).await;
 
             id as usize
         });
@@ -100,12 +95,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         let num_tables = args.tables;
         let client = Arc::clone(&pg_client);
-        let duration = std::time::Duration::from_secs(args.time);
+        let num_records = args.records;
 
         let join = task::spawn(async move {
             info!("Starting hash generation");
 
-            let round = hash_generation(num_tables, &client, duration).await;
+            let round = hash_generation(num_tables, &client, num_records).await;
 
             round.unwrap_or(0)
         });
@@ -144,7 +139,6 @@ async fn worker_function(
     id: i32,
     num_tables: i32,
     client: &Client,
-    duration: std::time::Duration,
     num_records: u32,
 ) -> Result<usize, Box<dyn std::error::Error>> {
     let db_routes = db::get_all_routes(&client).await;
@@ -158,8 +152,6 @@ async fn worker_function(
         routes[src][dst] = route.clone();
     }
 
-    let now = std::time::Instant::now();
-
     // Choose a path to run
     // 1. Select a random destination
     // 2. Choose the next hop from the table (minimum cost - greedy algorithm)
@@ -167,7 +159,7 @@ async fn worker_function(
     // 3. BEGIN flows (insert)
     // 4. Insert logs into each hop
     // 5. END flows (udpate status)
-    while now.elapsed() <= duration && GLOBAL_COUNTER.load(Ordering::SeqCst) < num_records {
+    while GLOBAL_COUNTER.load(Ordering::SeqCst) < num_records {
         let mut curr_id: i32 = id;
 
         let dst_id = rand::rng().random_range(0..num_tables);
@@ -200,9 +192,8 @@ async fn worker_function(
             GLOBAL_COUNTER.fetch_add(1, Ordering::SeqCst);
 
             // Mimic a random interval
-            let rand_interval = std::time::Duration::from_millis(rand::rng().random_range(5..=10));
-            // let rand_interval = std::time::Duration::from_millis(100);
-            tokio::time::sleep(rand_interval).await;
+            // let rand_interval = std::time::Duration::from_millis(rand::rng().random_range(5..=10));
+            // tokio::time::sleep(rand_interval).await;
         }
 
         db::update_flow(&client, flow_id).await;
@@ -215,13 +206,12 @@ async fn worker_function(
 async fn hash_generation(
     num_tables: i32,
     client: &Client,
-    duration: std::time::Duration,
+    num_records: u32,
 ) -> Result<i32, Box<dyn std::error::Error>> {
-    let now = std::time::Instant::now();
     let sleep_time = std::time::Duration::from_secs(5);
 
     let mut round: i32 = 0;
-    while now.elapsed() <= duration {
+    while GLOBAL_COUNTER.load(Ordering::SeqCst) < num_records {
         let _ = hash_logs(num_tables, client, round).await;
 
         tokio::time::sleep(sleep_time).await;
