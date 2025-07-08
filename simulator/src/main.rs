@@ -2,6 +2,7 @@ use clap::Parser;
 use rand::Rng;
 
 use std::path::Path;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
 use tokio::task;
@@ -16,6 +17,7 @@ use core::log;
 use core::postgres::Postgres;
 use core::Route;
 
+use once_cell::sync::Lazy;
 use sha2::{Digest, Sha256};
 
 mod db;
@@ -42,7 +44,14 @@ struct Args {
     /// Total running time for the simulator
     #[clap(short = 't', long, value_parser, default_value_t = 5, value_parser = clap::value_parser!(u64).range(1..=100000))]
     time: u64,
+
+    /// Total records
+    #[clap(long, default_value_t = 100)]
+    records: u32,
 }
+
+// Global atomic counter
+static GLOBAL_COUNTER: Lazy<AtomicU32> = Lazy::new(|| AtomicU32::new(0));
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 10)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -75,11 +84,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let num_tables = args.tables;
         let client = Arc::clone(&pg_client);
         let duration = std::time::Duration::from_secs(args.time);
+        let num_records = args.records;
 
         workers.spawn(async move {
             info!("Starting worker for table {}", id);
 
-            let _ = worker_function(id, num_tables, &client, duration).await;
+            let _ = worker_function(id, num_tables, &client, duration, num_records).await;
 
             id as usize
         });
@@ -119,6 +129,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("All workers have completed their tasks");
 
+    info!(
+        "Total records processed: {}",
+        GLOBAL_COUNTER.load(Ordering::SeqCst)
+    );
+
     // Make sure all logs are dropped.
     drop(log_guard);
 
@@ -130,6 +145,7 @@ async fn worker_function(
     num_tables: i32,
     client: &Client,
     duration: std::time::Duration,
+    num_records: u32,
 ) -> Result<usize, Box<dyn std::error::Error>> {
     let db_routes = db::get_all_routes(&client).await;
 
@@ -151,7 +167,7 @@ async fn worker_function(
     // 3. BEGIN flows (insert)
     // 4. Insert logs into each hop
     // 5. END flows (udpate status)
-    while now.elapsed() <= duration {
+    while now.elapsed() <= duration && GLOBAL_COUNTER.load(Ordering::SeqCst) < num_records {
         let mut curr_id: i32 = id;
 
         let dst_id = rand::rng().random_range(0..num_tables);
@@ -181,9 +197,11 @@ async fn worker_function(
             )
             .await;
 
+            GLOBAL_COUNTER.fetch_add(1, Ordering::SeqCst);
+
             // Mimic a random interval
-            //let rand_interval = std::time::Duration::from_millis(rand::rng().random_range(5..=10));
-            let rand_interval = std::time::Duration::from_millis(100);
+            let rand_interval = std::time::Duration::from_millis(rand::rng().random_range(5..=10));
+            // let rand_interval = std::time::Duration::from_millis(100);
             tokio::time::sleep(rand_interval).await;
         }
 
