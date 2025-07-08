@@ -159,10 +159,7 @@ async fn main() -> Result<(), Error> {
 
     info!("Receipt wrote to {}", receiptfile.display());
 
-    info!(
-        "Query prover completed in {:.2?} ms",
-        start.elapsed().as_millis()
-    );
+    info!("Execution took {} ms", start.elapsed().as_millis());
 
     // Make sure all logs are dropped.
     drop(log_guard);

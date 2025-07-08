@@ -3,8 +3,8 @@
 # Variables
 DB_HOST="localhost"         # Change to your Postgres server address if needed
 DB_PORT="5432"              # Default Postgres port
-#ADMIN_USER="$(whoami)"      # Postgres admin user (for mac)
-ADMIN_USER="postgres"       # Postgres admin user (for linux)
+ADMIN_USER="$(whoami)"      # Postgres admin user (for mac)
+#ADMIN_USER="postgres"       # Postgres admin user (for linux)
 ADMIN_PASSWORD="postgres"   # Admin password
 
 PROJECT="vns"

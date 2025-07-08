@@ -75,11 +75,6 @@ fn main() {
     let receipt: Receipt = bincode::deserialize(&fs::read(&receiptfile).unwrap()).unwrap();
     receipt.verify(VNT_ZKP_ID).unwrap();
 
-    info!(
-        "Receipt verification took {} ms",
-        start.elapsed().as_millis()
-    );
-
     let journal: AggregationJournal = receipt.journal.decode().unwrap();
     if !journal.success {
         error!("Journal verification is not successful!");
@@ -92,6 +87,8 @@ fn main() {
     info!("Merkle tree root: {:?}", root);
     info!("Merkle tree size: {}", tree.leaves_len());
     info!("Message: {}", journal.message);
+
+    info!("Execution took {} ms", start.elapsed().as_millis());
 
     // Make sure all logs are dropped.
     drop(log_guard);

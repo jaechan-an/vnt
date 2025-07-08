@@ -1,4 +1,7 @@
 #!/bin/bash
+rm -rf exp/2
+mkdir -p exp/2
+
 rm -rf logs
 rm -rf receipts
 
@@ -19,4 +22,7 @@ cargo run --bin verify
 cargo run --bin query_host -- --src1=0 --dst1=1 --src2=1 --dst2=0
 
 cargo run --bin query_verify
+
+cp -r logs exp/2/logs
+cp -r receipts exp/2/receipts
 
