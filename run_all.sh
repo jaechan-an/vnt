@@ -12,6 +12,7 @@ for NUM_RECORDS in "${NUM_RECORDS_ARRAY[@]}"; do
 
   rm -rf logs
   rm -rf receipts
+  mkdir -p exp/${NUM_RECORDS}
 
   cargo run --bin simulator -- --tables=${NUM_TABLES} --records=${NUM_RECORDS}
 
