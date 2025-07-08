@@ -112,10 +112,13 @@ async fn main() -> Result<(), Error> {
 
     // Select random source and destination for the query.
     // Source should be different from destination.
-    let src = rand::random::<i32>() % args.tables;
-    let dst = (src + 1 + rand::random::<i32>() % (args.tables - 1)) % args.tables;
+    let src = rand::random::<u32>() % args.tables as u32;
+    let mut dst = rand::random::<u32>() % args.tables as u32;
+    while src == dst {
+        dst = rand::random::<u32>() % args.tables as u32;
+    }
 
-    assert(src != dst, "Source and destination must be different");
+    assert!(src != dst, "Source and destination must be different");
 
     info!(
         "Querying from src: {}, dst: {}, total logs: {}",
@@ -129,8 +132,8 @@ async fn main() -> Result<(), Error> {
         clogs: clogs,                   // Aggregated logs: Vec<CLog>
         tree: aggregation_journal.tree, // Aggregation Merkle tree: Vec<u8>
         root: aggregation_journal.root, // Aggregation Merkle root: Vec<u8>
-        src: src,                       // Source for query
-        dst: dst,                       // Destination for query
+        src: src as i32,                // Source for query
+        dst: dst as i32,                // Destination for query
     };
 
     let env = ExecutorEnv::builder()
