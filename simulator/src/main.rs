@@ -143,9 +143,8 @@ async fn worker_function(
 ) -> Result<usize, Box<dyn std::error::Error>> {
     let db_routes = db::get_all_routes(&client).await;
 
-    let mut routes = vec![vec![Route::default(); num_tables as usize]; num_tables as usize];
-    let routes_slice = &db_routes[0..num_tables as usize];
-    for route in routes_slice {
+    let mut routes = vec![vec![Route::default(); 10]; 10];
+    for route in &db_routes {
         let src = route.src as usize;
         let dst = route.dst as usize;
 
@@ -198,6 +197,8 @@ async fn worker_function(
 
         db::update_flow(&client, flow_id).await;
     }
+
+    info!("Worker {} completed its task", id);
 
     // Return the current thread ID as usize
     Ok(id as usize)
