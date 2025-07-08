@@ -8,13 +8,12 @@ mkdir -p exp
 ./reset_db.sh
 
 NUM_TABLES=4
-SIM_TIME=10
-
 NUM_RECORDS_ARRAY=(50 100 500 1000 2000 3000 4000 5000)
-for NUM_RECORDS in "${NUM_RECORDS_ARRAY[@]}"; do
-  echo "Running simulation with ${NUM_TABLES} tables, ${SIM_TIME} seconds, and ${NUM_RECORDS} records..."
 
-  cargo run --bin simulator -- --tables=${NUM_TABLES} --time=${SIM_TIME} --records=${NUM_RECORDS}
+for NUM_RECORDS in "${NUM_RECORDS_ARRAY[@]}"; do
+  echo "Running simulation with ${NUM_TABLES} tables and ${NUM_RECORDS} records..."
+
+  cargo run --bin simulator -- --tables=${NUM_TABLES} --records=${NUM_RECORDS}
 
   cargo run --bin host -- --tables=${NUM_TABLES}
 
