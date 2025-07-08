@@ -51,18 +51,6 @@ struct Args {
     /// Total count of internal nodes
     #[clap(short = 'n', long, value_parser, default_value_t = 10, value_parser = clap::value_parser!(i32).range(1..=10))]
     tables: i32,
-
-    #[clap(long, default_value_t = 0)]
-    src1: i32,
-
-    #[clap(long, default_value_t = 1)]
-    dst1: i32,
-
-    #[clap(long, default_value_t = 1)]
-    src2: i32,
-
-    #[clap(long, default_value_t = 0)]
-    dst2: i32,
 }
 
 #[tokio::main]
@@ -122,15 +110,27 @@ async fn main() -> Result<(), Error> {
     // Step 2. Read the aggregated logs from the database.
     let clogs: Vec<CLog> = db::get_clogs(&pg_client).await;
 
+    // Select random source and destination for the query.
+    // Source should be different from destination.
+    let src = rand::random::<i32>() % args.tables;
+    let dst = (src + 1 + rand::random::<i32>() % (args.tables - 1)) % args.tables;
+
+    assert(src != dst, "Source and destination must be different");
+
+    info!(
+        "Querying from src: {}, dst: {}, total logs: {}",
+        src,
+        dst,
+        clogs.len()
+    );
+
     // Step 3. Pass the Merkle tree to the guest program.
     let input = QueryPrivateInput {
         clogs: clogs,                   // Aggregated logs: Vec<CLog>
         tree: aggregation_journal.tree, // Aggregation Merkle tree: Vec<u8>
         root: aggregation_journal.root, // Aggregation Merkle root: Vec<u8>
-        src1: args.src1,                // Source 1 for query
-        dst1: args.dst1,                // Destination 1 for query
-        src2: args.src2,                // Source 1 for query
-        dst2: args.dst2,                // Destination 1 for query
+        src: src,                       // Source for query
+        dst: dst,                       // Destination for query
     };
 
     let env = ExecutorEnv::builder()

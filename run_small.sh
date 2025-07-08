@@ -19,7 +19,7 @@ cargo run --bin host -- --tables=2
 
 cargo run --bin verify
 
-cargo run --bin query_host -- --src1=0 --dst1=1 --src2=1 --dst2=0
+cargo run --bin query_host -- --tables=2
 
 cargo run --bin query_verify
 

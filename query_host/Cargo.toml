@@ -19,5 +19,6 @@ tokio = { workspace = true }
 tokio-postgres = { workspace = true }
 rs_merkle = { workspace = true }
 hex = { workspace = true }
+rand = { workspace = true }
 
 core = { path = "../core" , features = ["query_host"]}
