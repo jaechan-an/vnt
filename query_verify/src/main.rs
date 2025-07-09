@@ -64,11 +64,12 @@ fn main() {
 
     info!("Verifying receipt file: {}", &receiptfile.display());
 
-    let start = Instant::now();
-
     // Load and verify the receipt file.
     let receipt: Receipt = bincode::deserialize(&fs::read(&receiptfile).unwrap()).unwrap();
+
+    let start = Instant::now();
     receipt.verify(QUERY_METHOD_ID).unwrap();
+    let elapsed = start.elapsed().as_millis();
 
     let journal: QueryJournal = receipt.journal.decode().unwrap();
     if !journal.success {
@@ -77,7 +78,10 @@ fn main() {
 
     info!("Message: {}", journal.message);
 
-    info!("Execution took {} ms", start.elapsed().as_millis());
+    info!("Journal size: {} bytes", receipt.journal.bytes.len());
+    info!("Seal size: {} bytes", receipt.seal_size());
+
+    info!("Execution took {} ms", elapsed);
 
     // Make sure all logs are dropped.
     drop(log_guard);

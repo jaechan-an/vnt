@@ -69,11 +69,12 @@ fn main() {
 
     info!("Verifying receipt file: {}", &receiptfile.display());
 
-    let start = Instant::now();
-
     // Load and verify the receipt file.
     let receipt: Receipt = bincode::deserialize(&fs::read(&receiptfile).unwrap()).unwrap();
+
+    let start = Instant::now();
     receipt.verify(VNT_ZKP_ID).unwrap();
+    let elapsed = start.elapsed().as_millis();
 
     let journal: AggregationJournal = receipt.journal.decode().unwrap();
     if !journal.success {
@@ -88,7 +89,7 @@ fn main() {
     info!("Merkle tree size: {}", tree.leaves_len());
     info!("Message: {}", journal.message);
 
-    info!("Execution took {} ms", start.elapsed().as_millis());
+    info!("Execution took {} ms", elapsed);
 
     // Make sure all logs are dropped.
     drop(log_guard);

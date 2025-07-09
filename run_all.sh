@@ -3,7 +3,7 @@ rm -rf exp
 mkdir -p exp
 
 NUM_TABLES=4
-NUM_RECORDS_ARRAY=(50 100 500 1000 2000 3000 4000 5000)
+NUM_RECORDS_ARRAY=(50 100 500 1000 2000 3000)
 
 for NUM_RECORDS in "${NUM_RECORDS_ARRAY[@]}"; do
   echo "Running simulation with ${NUM_TABLES} tables and ${NUM_RECORDS} records..."
@@ -14,15 +14,15 @@ for NUM_RECORDS in "${NUM_RECORDS_ARRAY[@]}"; do
   rm -rf receipts
   mkdir -p exp/${NUM_RECORDS}
 
-  cargo run --bin simulator -- --tables=${NUM_TABLES} --records=${NUM_RECORDS}
+  cargo run --release --bin simulator -- --tables=${NUM_TABLES} --records=${NUM_RECORDS}
 
-  cargo run --bin host -- --tables=${NUM_TABLES}
+  RISC0_DEV_MODE=0 cargo run --release --bin host -- --tables=${NUM_TABLES}
 
-  cargo run --bin verify
+  RISC0_DEV_MODE=0 cargo run --release --bin verify
 
-  cargo run --bin query_host -- --tables=${NUM_TABLES}
+  RISC0_DEV_MODE=0 cargo run --release --bin query_host -- --tables=${NUM_TABLES}
 
-  cargo run --bin query_verify
+  RISC0_DEV_MODE=0 cargo run --release --bin query_verify
 
   cp -r logs exp/${NUM_RECORDS}/logs
   cp -r receipts exp/${NUM_RECORDS}/receipts

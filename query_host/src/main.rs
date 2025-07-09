@@ -1,6 +1,6 @@
 use methods::VNT_ZKP_ID;
 use query_methods::QUERY_METHOD_ELF;
-use risc0_zkvm::{default_prover, ExecutorEnv, Receipt};
+use risc0_zkvm::{default_prover, ExecutorEnv, ProverOpts, Receipt};
 
 use clap::Parser;
 use tokio_postgres::Error;
@@ -82,8 +82,6 @@ async fn main() -> Result<(), Error> {
         .await
         .expect("Failed to connect to Postgres");
 
-    let start = Instant::now();
-
     info!("Starting query prover");
 
     // Step 1. Check the aggregation receipt file.
@@ -143,7 +141,14 @@ async fn main() -> Result<(), Error> {
         .unwrap();
 
     let prover = default_prover();
-    let prove_info = prover.prove(env, QUERY_METHOD_ELF).unwrap();
+    let opts = ProverOpts::groth16();
+
+    let start = Instant::now();
+    let prove_info = prover
+        .prove_with_opts(env, QUERY_METHOD_ELF, &opts)
+        .unwrap();
+    let elapsed = start.elapsed().as_millis();
+
     let receipt = prove_info.receipt;
 
     let journal: QueryJournal = receipt.journal.decode().expect("Journal decoding failed");
@@ -162,7 +167,10 @@ async fn main() -> Result<(), Error> {
 
     info!("Receipt wrote to {}", receiptfile.display());
 
-    info!("Execution took {} ms", start.elapsed().as_millis());
+    info!("Journal size: {} bytes", receipt.journal.bytes.len());
+    info!("Seal size: {} bytes", receipt.seal_size());
+
+    info!("Execution took {} ms", elapsed);
 
     // Make sure all logs are dropped.
     drop(log_guard);

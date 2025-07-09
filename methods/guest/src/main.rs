@@ -19,18 +19,6 @@ fn main() {
 
     println!("Input read in {} cycles", end - start);
 
-    /*
-     * 1. Compute the hash of the input logs and compare it with the input hashes.
-     *   - If they match, there has been no manipulation of the logs.
-     * 1. Compute the aggregated logs from the input logs and compare it with the input new_clogs.
-     *    - If they match, the aggregation logic is performed trustfully.
-     *    - This ensures that the aggregation computation is done correctly.
-     * 2. Build a Merkle tree from the aggregated logs.
-     *    - The Merkle tree is built from the aggregated logs to ensure integrity and consistency.
-     *    - We do it in the guest program to ensure that the aggregation logic is correct and can
-     *      be verified.
-     * 3. Return the Merkle root in the journal.
-     */
     let mut success = true;
     let mut message: String = String::from("Aggregation successful");
 

@@ -1,0 +1,6 @@
+# Idx Records Gen_Latency(ms) Verify_latency(ms) Query_Gen_latency(ms) Query_Verify_latency(ms)
+1     50      55764           34                 55426                 36
+2     100     83338           67                 59060                 63
+3     500     395586          267                332358                213
+4     1000    806970          511                610664                387
+5     2000    1611269         1001               1250062               812
