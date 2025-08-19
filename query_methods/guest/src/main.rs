@@ -36,6 +36,8 @@ fn main() {
     let merkle_proof = tree.proof(&indices_to_prove);
     let merkle_root = tree.root().unwrap_or_else(|| [0; 32]);
 
+    println!("Merkle tree depth: {}", tree.depth());
+
     assert!(merkle_proof.verify(
         merkle_root,
         &indices_to_prove,

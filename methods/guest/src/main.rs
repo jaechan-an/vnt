@@ -118,6 +118,7 @@ fn main() {
 
     end = env::cycle_count();
     println!("New Merkle tree built in {} cycles", end - start);
+    println!("Merkle tree depth: {}", new_tree.depth());
 
     // Step 4. Output the journal with the success status, Merkle tree, and root.
     start = env::cycle_count();

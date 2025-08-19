@@ -4,6 +4,7 @@ mkdir -p exp
 
 NUM_TABLES=4
 NUM_RECORDS_ARRAY=(50 100 500 1000 2000 3000)
+#NUM_RECORDS_ARRAY=(50 100)
 
 for NUM_RECORDS in "${NUM_RECORDS_ARRAY[@]}"; do
   echo "Running simulation with ${NUM_TABLES} tables and ${NUM_RECORDS} records..."
