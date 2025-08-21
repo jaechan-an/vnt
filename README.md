@@ -6,15 +6,15 @@ This project presents a purely software-based approach to verifiable network tel
 
 ## Directory Structure
 
-The repository is organized as follows to separate concerns between data generation, proof logic, and system orchestration. Below is a high-level overview of the main components:
+This repository is structured to separate concerns between data simulation, aggregation, query handling, and zero-knowledge proof generation. Below is an overview of the main components:
 
-- `core/`: Shared logic for telemetry data structures (e.g., NetFlow logs), Merkle tree operations, and helper utilities used across host and guest code.
-- `host/`: ZKP proof generation logic for aggregation phase. The host creates a ZKP proof of the method's logic.
-- `methods/`: Contains the aggregation logic and is executed by the host to generate a verifiable proof.
-- `query_host/`: ZKP proof generation logic for query phase.
-- `query_methods/`: Contains the query logic (e.g., add, average, etc.) based on the aggregated data set.
-- `query_verify/`: Executes query verification.
-- `simulator/`: NetFlow simulator to produce raw logs. These logs are aggregagted during the aggregation phase executed by the `host/`.
+- `core/`: Contains shared utilities and data structures, including NetFlow log definitions and Merkle tree operations, used across both aggregation and query phases.
+- `host/`: Responsible for executing the aggregation phase and generating zero-knowledge proofs based on the logic defined in `methods/`.
+- `methods/`: Defines the aggregation logic executed within the zkVM. The `host/` invokes this logic to generate verifiable proofs.
+- `query_host/`: Handles ZKP proof generation for client queries, operating over the committed aggregated dataset.
+- `query_methods/`: Encapsulates query logic (e.g., sum, average) to be run inside the zkVM.
+- `query_verify/`: Provides verification logic for validating proofs generated during the query phase.
+- `simulator/`: Simulates NetFlow data by generating raw logs that are later aggregated by the `host/` during the proof generation process.
 
 ## Quick Start
 
