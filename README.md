@@ -2,6 +2,8 @@
 
 This project presents a purely software-based approach to verifiable network telemetry using zero-knowledge proofs (ZKPs). It enables third-party verification of network performance metrics—such as packet loss or flow counts—without revealing sensitive telemetry logs. Our system addresses two core challenges: (1) ensuring data integrity via lightweight, per-router hash commitments, and (2) preserving confidentiality by generating ZKPs that attest to correct computation over committed data. Built on the RISC Zero ZKP framework, the design could support arbitrary query logic and decouples aggregation from query processing for scalable, off-path computation. This repository includes our full prototype, written in Rust, with evaluation scripts, aggregation logic, and guest code for generating verifiable proofs.
 
+**[Paper Link](https://drive.google.com/file/d/1fyqbl7lSLHFslbywCCzuXPx5WHf_FEtU/view?usp=sharing)**
+
 ## File Structure
 
 ## Quick Start
