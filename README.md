@@ -4,6 +4,11 @@ This project presents a purely software-based approach to verifiable network tel
 
 **[Paper Link](https://drive.google.com/file/d/1fyqbl7lSLHFslbywCCzuXPx5WHf_FEtU/view?usp=sharing)**
 
+## Prerequisites
+- [RISC Zero](https://risczero.com/)
+- [Zero-knowledge Proofs - Youtube](https://youtu.be/9hJNw2i1dL4?si=edrxklIvcf84ZN4C)
+- [Rust](https://www.rust-lang.org/)
+
 ## Directory Structure
 
 This repository is structured to separate concerns between data simulation, aggregation, query handling, and zero-knowledge proof generation. Below is an overview of the main components:
