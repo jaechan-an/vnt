@@ -4,7 +4,17 @@ This project presents a purely software-based approach to verifiable network tel
 
 **[Paper Link](https://drive.google.com/file/d/1fyqbl7lSLHFslbywCCzuXPx5WHf_FEtU/view?usp=sharing)**
 
-## File Structure
+## Directory Structure
+
+The repository is organized as follows to separate concerns between data generation, proof logic, and system orchestration. Below is a high-level overview of the main components:
+
+- `core/`: Shared logic for telemetry data structures (e.g., NetFlow logs), Merkle tree operations, and helper utilities used across host and guest code.
+- `host/`: ZKP proof generation logic for aggregation phase. The host creates a ZKP proof of the method's logic.
+- `methods/`: Contains the aggregation logic and is executed by the host to generate a verifiable proof.
+- `query_host/`: ZKP proof generation logic for query phase.
+- `query_methods/`: Contains the query logic (e.g., add, average, etc.) based on the aggregated data set.
+- `query_verify/`: Executes query verification.
+- `simulator/`: NetFlow simulator to produce raw logs. These logs are aggregagted during the aggregation phase executed by the `host/`.
 
 ## Quick Start
 
