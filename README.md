@@ -1,11 +1,8 @@
-# RISC Zero Rust Starter Template
+# Verifiable Network Telemetry
 
-Welcome to the RISC Zero Rust Starter Template! This template is intended to
-give you a starting point for building a project using the RISC Zero zkVM.
-Throughout the template (including in this README), you'll find comments
-labelled `TODO` in places where you'll need to make changes. To better
-understand the concepts behind this template, check out the [zkVM
-Overview][zkvm-overview].
+This project presents a purely software-based approach to verifiable network telemetry using zero-knowledge proofs (ZKPs). It enables third-party verification of network performance metrics—such as packet loss or flow counts—without revealing sensitive telemetry logs. Our system addresses two core challenges: (1) ensuring data integrity via lightweight, per-router hash commitments, and (2) preserving confidentiality by generating ZKPs that attest to correct computation over committed data. Built on the RISC Zero ZKP framework, the design could support arbitrary query logic and decouples aggregation from query processing for scalable, off-path computation. This repository includes our full prototype, written in Rust, with evaluation scripts, aggregation logic, and guest code for generating verifiable proofs.
+
+## File Structure
 
 ## Quick Start
 
