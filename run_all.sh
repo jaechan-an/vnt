@@ -2,9 +2,12 @@
 rm -rf exp
 mkdir -p exp
 
+# Number of tables is the number of routers in the netflow simulation.
+# Number of records is the total number of records in the simulation.
+# Example: 4 tables, 1000 records means 4 routers with a total of 1000 records.
+
 NUM_TABLES=4
 NUM_RECORDS_ARRAY=(50 100 500 1000 2000 3000)
-#NUM_RECORDS_ARRAY=(50 100)
 
 for NUM_RECORDS in "${NUM_RECORDS_ARRAY[@]}"; do
   echo "Running simulation with ${NUM_TABLES} tables and ${NUM_RECORDS} records..."
