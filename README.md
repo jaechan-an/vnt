@@ -21,6 +21,27 @@ This repository is structured to separate concerns between data simulation, aggr
 - `query_verify/`: Provides verification logic for validating proofs generated during the query phase.
 - `simulator/`: Simulates NetFlow data by generating raw logs that are later aggregated by the `host/` during the proof generation process.
 
+## Installation
+Currently only supports `Ubuntu 20.04`.
+```bash
+sudo apt update
+sudo apt upgrade
+sudo apt install postgresql postgresql-contrib
+sudo apt-get install libpq-dev
+sudo service postgresql start
+
+# Install rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Install Risc Zero (https://dev.risczero.com/api/zkvm/install)
+curl -L https://risczero.com/install | bash
+rzup install
+
+# Setup Postgres
+sudo -i -u postgres psql
+ALTER USER postgres PASSWORD 'postgres'
+```
+
 ## Quick Start
 
 **I suggest checking simulator -> host -> method -> verify -> query_host -> query_guest -> query_verify in the given order.**
