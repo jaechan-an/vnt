@@ -23,6 +23,8 @@ This repository is structured to separate concerns between data simulation, aggr
 
 ## Quick Start
 
+**I suggest checking simulator -> host -> method -> verify -> query_host -> query_guest -> query_verify in the given order.**
+
 You must have the followings installed:
 postgres, rust, RISC-zero
 
