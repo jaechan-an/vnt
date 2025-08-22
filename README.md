@@ -23,19 +23,13 @@ This repository is structured to separate concerns between data simulation, aggr
 
 ## Quick Start
 
-First, make sure [rustup] is installed. The
-[`rust-toolchain.toml`][rust-toolchain] file will be used by `cargo` to
-automatically install the correct version.
-
-To build all methods and execute the method within the zkVM, run the following
-command:
+You must have the followings installed:
+postgres, rust, RISC-zero
 
 ```bash
-cargo run
+# In the project directory
+./run_all.sh # Runs all the experiments. Checkout the script.
 ```
-
-This is an empty template, and so there is no expected output (until you modify
-the code).
 
 ### Executing the Project Locally in Development Mode
 
