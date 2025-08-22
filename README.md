@@ -31,6 +31,30 @@ postgres, rust, RISC-zero
 ./run_all.sh # Runs all the experiments. Checkout the script.
 ```
 
+To run each module one-by-one,
+```bash
+# Reset the database
+./reset_db.sh
+
+# Run Simulator
+cargo run --release --bin simulator -- --tables=${NUM_TABLES} --records=${NUM_RECORDS}
+
+# Run host (aggregation phase)
+cargo run --release --bin host -- --tables=${NUM_TABLES}
+
+# Run host verification (verify the aggregation proof)
+cargo run --release --bin verify
+
+# Run query_host (query logic phase)
+cargo run --release --bin query_host -- --tables=${NUM_TABLES}
+
+# Run query_verification (verify the query proof)
+cargo run --release --bin query_verify
+```
+
+We have a logging system which is written into the `logs` directory.
+The receipts will be inside the `receipts` directory by default.
+
 ### Executing the Project Locally in Development Mode
 
 During development, faster iteration upon code changes can be achieved by leveraging [dev-mode], we strongly suggest activating it during your early development phase. Furthermore, you might want to get insights into the execution statistics of your project, and this can be achieved by specifying the environment variable `RUST_LOG="[executor]=info"` before running your project.
