@@ -7,7 +7,18 @@ mkdir -p exp
 # Example: 4 tables, 1000 records means 4 routers with a total of 1000 records.
 
 NUM_TABLES=4
-NUM_RECORDS_ARRAY=(50 100 500 1000 2000 3000)
+#NUM_RECORDS_ARRAY=(50 100 500 1000 2000 3000)
+NUM_RECORDS_ARRAY=(50)
+
+RELEASE_MODE=0
+
+if [ "${RELEASE_MODE}" -eq 1 ]; then
+  BUILD_MODE="RISC0_DEV_MODE=0"
+  RELEASE="--release"
+else
+  BUILD_MODE=""
+  RELEASE=""
+fi
 
 for NUM_RECORDS in "${NUM_RECORDS_ARRAY[@]}"; do
   echo "Running simulation with ${NUM_TABLES} tables and ${NUM_RECORDS} records..."
@@ -18,15 +29,19 @@ for NUM_RECORDS in "${NUM_RECORDS_ARRAY[@]}"; do
   rm -rf receipts
   mkdir -p exp/${NUM_RECORDS}
 
-  cargo run --release --bin simulator -- --tables=${NUM_TABLES} --records=${NUM_RECORDS}
+  # Run initial inserts to the tables
+  cargo run ${RELEASE} --bin simulator -- --tables=${NUM_TABLES} --records=${NUM_RECORDS}
 
-  RISC0_DEV_MODE=0 cargo run --release --bin host -- --tables=${NUM_TABLES}
+  ${BUILD_MODE} cargo run ${RELEASE} --bin host -- --tables=${NUM_TABLES}
 
-  RISC0_DEV_MODE=0 cargo run --release --bin verify
+  ${BUILD_MODE} cargo run ${RELEASE} --bin verify
 
-  RISC0_DEV_MODE=0 cargo run --release --bin query_host -- --tables=${NUM_TABLES}
+  # Run updates to the tables
+  cargo run ${RELEASE} --bin simulator -- --tables=${NUM_TABLES} --records=${NUM_RECORDS} --update
 
-  RISC0_DEV_MODE=0 cargo run --release --bin query_verify
+  ${BUILD_MODE} cargo run ${RELEASE} --bin query_host -- --tables=${NUM_TABLES}
+
+  ${BUILD_MODE} cargo run ${RELEASE} --bin query_verify
 
   cp -r logs exp/${NUM_RECORDS}/logs
   cp -r receipts exp/${NUM_RECORDS}/receipts

@@ -25,6 +25,18 @@ pub async fn get_all_routes(client: &Client) -> Vec<Route> {
     routes
 }
 
+pub async fn get_table_size(client: &Client, curr: i32) -> i64 {
+    let query = format!("SELECT COUNT(*) FROM logs_{}", curr);
+    let row = client
+        .query_one(query.as_str(), &[])
+        .await
+        .expect("Wrong logs");
+
+    let count: i64 = row.get("count");
+
+    count
+}
+
 pub async fn get_logs(client: &Client, curr: i32) -> Vec<Log> {
     let query = format!("SELECT * FROM logs_{}", curr);
     let rows = client.query(query.as_str(), &[]).await.expect("Wrong logs");
@@ -95,6 +107,25 @@ pub async fn insert_flow(client: &Client, src: i32, dst: i32) -> i32 {
     flow_id
 }
 
+pub async fn update_packet_size(client: &Client, curr: i32, log_id: i32, new_packet_size: i32) {
+    let query = format!(
+        "UPDATE logs_{} SET packet_size = $1, seq = nextval('log_seq') WHERE id = $2",
+        curr
+    );
+
+    let rows_affected = client
+        .execute(&query, &[&new_packet_size, &log_id])
+        .await
+        .expect("UPDATE error in logs");
+
+    assert_eq!(rows_affected, 1, "Expected exactly one row to be updated");
+
+    debug!(
+        "Updated log in logs_{}: id: {}, new_packet_size: {}",
+        curr, log_id, new_packet_size
+    );
+}
+
 pub async fn update_flow(client: &Client, flow_id: i32) {
     let query = "UPDATE flows SET is_done = true WHERE id = $1";
 
@@ -122,6 +153,21 @@ pub async fn put_hash(client: &Client, node_id: i32, hash: [u8; 32], round: i32)
         "Inserted/Updated hash for node_id: {}, hash: {:?}",
         node_id, hash
     );
+}
+
+pub async fn get_metadata(client: &Client, k: &str) -> i64 {
+    let query = "select * from metadata where key = $1";
+    let row = client
+        .query_one(query, &[&k])
+        .await
+        .expect("metadata fetch failed");
+
+    let key: &str = row.get("key");
+    let value: i64 = row.get("value");
+
+    assert_eq!(key, k, "fetched key different");
+
+    value
 }
 
 pub async fn put_metadata(client: &Client, k: &str, v: i64) {

@@ -44,6 +44,10 @@ struct Args {
     /// Total records
     #[clap(long, default_value_t = 100)]
     records: u32,
+
+    /// Update-only mode
+    #[clap(long, default_value_t = false)]
+    update_only: bool,
 }
 
 // Global atomic counter
@@ -89,12 +93,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let num_tables = args.tables;
         let client = Arc::clone(&pg_client);
         let num_records = args.records;
+        let update_only = args.update_only;
 
         workers.spawn(async move {
             info!("Starting worker for table {}", id);
 
             // The worker_function generates the netflow logs.
-            let _ = worker_function(id, num_tables, &client, num_records).await;
+            let _ = worker_function(id, num_tables, &client, num_records, update_only).await;
 
             id as usize
         });
@@ -151,7 +156,26 @@ async fn worker_function(
     num_tables: i32,
     client: &Client,
     num_records: u32,
+    update_only: bool,
 ) -> Result<usize, Box<dyn std::error::Error>> {
+    if update_only {
+        let _ = update_workload(id, client, num_records).await;
+    } else {
+        let _ = insert_workload(id, num_tables, client, num_records).await;
+    }
+
+    info!("Worker {} completed its task", id);
+
+    // Return the current thread ID as usize
+    Ok(id as usize)
+}
+
+async fn insert_workload(
+    id: i32,
+    num_tables: i32,
+    client: &Client,
+    num_records: u32,
+) -> Result<(), Box<dyn std::error::Error>> {
     let db_routes = db::get_all_routes(&client).await;
 
     let mut routes = vec![vec![Route::default(); 10]; 10];
@@ -208,11 +232,27 @@ async fn worker_function(
 
         db::update_flow(&client, flow_id).await;
     }
+    Ok(())
+}
 
-    info!("Worker {} completed its task", id);
+async fn update_workload(
+    id: i32,
+    client: &Client,
+    num_records: u32,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let table_size = db::get_table_size(&client, id).await;
 
-    // Return the current thread ID as usize
-    Ok(id as usize)
+    while GLOBAL_COUNTER.load(Ordering::SeqCst) < num_records {
+        let row_id: i32 = rand::rng().random_range(1..=table_size).try_into().unwrap();
+
+        // Update the packet size randomly
+        let new_packet_size = rand::rng().random_range(1..=100);
+        db::update_packet_size(&client, id, row_id, new_packet_size).await;
+
+        GLOBAL_COUNTER.fetch_add(1, Ordering::SeqCst);
+    }
+
+    Ok(())
 }
 
 async fn hash_generation(
@@ -222,7 +262,10 @@ async fn hash_generation(
 ) -> Result<i32, Box<dyn std::error::Error>> {
     let sleep_time = std::time::Duration::from_secs(5);
 
-    let mut round: i32 = 0;
+    let mut round: i32 = (db::get_metadata(&client, "last_logs_hash_round").await + 1)
+        .try_into()
+        .unwrap();
+
     while GLOBAL_COUNTER.load(Ordering::SeqCst) < num_records {
         let _ = hash_logs(num_tables, client, round).await;
 
