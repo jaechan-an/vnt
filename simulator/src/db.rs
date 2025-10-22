@@ -107,23 +107,20 @@ pub async fn insert_flow(client: &Client, src: i32, dst: i32) -> i32 {
     flow_id
 }
 
-pub async fn update_packet_size(client: &Client, curr: i32, log_id: i32, new_packet_size: i32) {
+pub async fn increment_hop_cnt(client: &Client, curr: i32, log_id: i32) {
     let query = format!(
-        "UPDATE logs_{} SET packet_size = $1, seq = nextval('log_seq') WHERE id = $2",
+        "UPDATE logs_{} SET hop_cnt = hop_cnt + 1, seq = nextval('log_seq') WHERE id = $1",
         curr
     );
 
     let rows_affected = client
-        .execute(&query, &[&new_packet_size, &log_id])
+        .execute(&query, &[&log_id])
         .await
         .expect("UPDATE error in logs");
 
     assert_eq!(rows_affected, 1, "Expected exactly one row to be updated");
 
-    debug!(
-        "Updated log in logs_{}: id: {}, new_packet_size: {}",
-        curr, log_id, new_packet_size
-    );
+    debug!("Updated log in logs_{}: id: {}", curr, log_id);
 }
 
 pub async fn update_flow(client: &Client, flow_id: i32) {

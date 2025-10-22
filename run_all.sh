@@ -8,7 +8,7 @@ mkdir -p exp
 
 NUM_TABLES=4
 #NUM_RECORDS_ARRAY=(50 100 500 1000 2000 3000)
-NUM_RECORDS_ARRAY=(50)
+NUM_RECORDS_ARRAY=(20)
 
 RELEASE_MODE=0
 
@@ -32,12 +32,22 @@ for NUM_RECORDS in "${NUM_RECORDS_ARRAY[@]}"; do
   # Run initial inserts to the tables
   cargo run ${RELEASE} --bin simulator -- --tables=${NUM_TABLES} --records=${NUM_RECORDS}
 
+  sleep 5
+
   ${BUILD_MODE} cargo run ${RELEASE} --bin host -- --tables=${NUM_TABLES}
 
   ${BUILD_MODE} cargo run ${RELEASE} --bin verify
 
   # Run updates to the tables
-  cargo run ${RELEASE} --bin simulator -- --tables=${NUM_TABLES} --records=${NUM_RECORDS} --update
+  cargo run ${RELEASE} --bin simulator -- --tables=${NUM_TABLES} --records=${NUM_RECORDS} --update-only
+
+  sleep 5
+
+  ${BUILD_MODE} cargo run ${RELEASE} --bin host -- --tables=${NUM_TABLES}
+
+  ${BUILD_MODE} cargo run ${RELEASE} --bin verify
+
+  sleep 5
 
   ${BUILD_MODE} cargo run ${RELEASE} --bin query_host -- --tables=${NUM_TABLES}
 

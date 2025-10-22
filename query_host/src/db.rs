@@ -25,7 +25,6 @@ fn row_to_clog(row: &Row) -> CLog {
     let dst: i32 = row.get("dst");
     let packet_size: i32 = row.get("packet_size");
     let hop_cnt: i32 = row.get("hop_cnt");
-    let version: i32 = row.get("version");
 
-    CLog::new(id, flow_id, src, dst, packet_size, hop_cnt, version)
+    CLog::new(id, flow_id, src, dst, packet_size, hop_cnt)
 }

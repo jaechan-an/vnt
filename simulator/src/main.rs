@@ -246,8 +246,7 @@ async fn update_workload(
         let row_id: i32 = rand::rng().random_range(1..=table_size).try_into().unwrap();
 
         // Update the packet size randomly
-        let new_packet_size = rand::rng().random_range(1..=100);
-        db::update_packet_size(&client, id, row_id, new_packet_size).await;
+        db::increment_hop_cnt(&client, id, row_id).await;
 
         GLOBAL_COUNTER.fetch_add(1, Ordering::SeqCst);
     }

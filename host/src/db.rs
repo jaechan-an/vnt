@@ -68,16 +68,11 @@ pub async fn get_curr_seq(client: &Client) -> i64 {
     value
 }
 
-pub async fn get_new_logs(
-    client: &Client,
-    num_tables: &i32,
-    prev_seq: &i64,
-    curr_seq: &i64,
-) -> Vec<Vec<Log>> {
+pub async fn get_new_logs(client: &Client, num_tables: &i32, prev_seq: &i64) -> Vec<Vec<Log>> {
     let mut new_logs: Vec<Vec<Log>> = Vec::new();
 
     for node_id in 0..*num_tables {
-        let logs: Vec<Log> = get_table_new_logs(&client, &node_id, prev_seq, curr_seq).await;
+        let logs: Vec<Log> = get_table_new_logs(&client, &node_id, prev_seq).await;
 
         new_logs.push(logs);
     }
@@ -85,18 +80,10 @@ pub async fn get_new_logs(
     new_logs
 }
 
-async fn get_table_new_logs(
-    client: &Client,
-    node_id: &i32,
-    prev_seq: &i64,
-    curr_seq: &i64,
-) -> Vec<Log> {
-    let query = format!(
-        "SELECT * FROM logs_{} WHERE seq >= $1 AND seq < $2",
-        node_id
-    );
+async fn get_table_new_logs(client: &Client, node_id: &i32, prev_seq: &i64) -> Vec<Log> {
+    let query = format!("SELECT * FROM logs_{} WHERE seq > $1", node_id);
     let rows = client
-        .query(query.as_str(), &[prev_seq, curr_seq])
+        .query(query.as_str(), &[prev_seq])
         .await
         .expect("Log fetch failed");
 
@@ -135,11 +122,11 @@ pub async fn get_clogs(client: &Client) -> Vec<CLog> {
 
 pub async fn upsert_clog(client: &Client, clog: &CLog) -> Result<i32, Error> {
     // UPSERT and return the id (offset of merkle tree)
-    let query = "INSERT INTO clogs (flow_id, src, dst, packet_size, hop_cnt, version)
-        VALUES ($1, $2, $3, $4, $5, 1)
+    let query = "INSERT INTO clogs (flow_id, src, dst, packet_size, hop_cnt)
+        VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (flow_id)
         DO
-        UPDATE SET src = $2, dst = $3, packet_size = $4, hop_cnt = $5, version = clogs.version + 1
+        UPDATE SET src = $2, dst = $3, packet_size = $4, hop_cnt = $5
         RETURNING id";
 
     let row = client
@@ -187,7 +174,6 @@ fn row_to_clog(row: &Row) -> CLog {
     let dst: i32 = row.get("dst");
     let packet_size: i32 = row.get("packet_size");
     let hop_cnt: i32 = row.get("hop_cnt");
-    let version: i32 = row.get("version");
 
-    CLog::new(id, flow_id, src, dst, packet_size, hop_cnt, version)
+    CLog::new(id, flow_id, src, dst, packet_size, hop_cnt)
 }

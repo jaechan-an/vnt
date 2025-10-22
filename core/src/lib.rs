@@ -83,7 +83,7 @@ impl Flow {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Log {
     pub id: i32,
     pub flow_id: i32,
@@ -121,6 +121,15 @@ impl Log {
             self.id, self.flow_id, self.src, self.dst, self.pred, self.packet_size, self.hop_cnt
         )
     }
+
+    pub fn equals(&self, log: &Log) -> bool {
+        self.flow_id == log.flow_id
+            && self.src == log.src
+            && self.dst == log.dst
+            && self.pred == log.pred
+            && self.packet_size == log.packet_size
+            && self.hop_cnt == log.hop_cnt
+    }
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -131,19 +140,10 @@ pub struct CLog {
     pub dst: i32,
     pub packet_size: i32,
     pub hop_cnt: i32,
-    pub version: i32,
 }
 
 impl CLog {
-    pub fn new(
-        id: i32,
-        flow_id: i32,
-        src: i32,
-        dst: i32,
-        packet_size: i32,
-        hop_cnt: i32,
-        version: i32,
-    ) -> Self {
+    pub fn new(id: i32, flow_id: i32, src: i32, dst: i32, packet_size: i32, hop_cnt: i32) -> Self {
         CLog {
             id: id,
             flow_id: flow_id,
@@ -151,7 +151,6 @@ impl CLog {
             dst: dst,
             packet_size: packet_size,
             hop_cnt: hop_cnt,
-            version: version,
         }
     }
 
@@ -165,8 +164,8 @@ impl CLog {
 
     pub fn to_string(&self) -> String {
         format!(
-            "id: {}, flow_id: {}, src: {}, dst: {}, packet_size: {}, hop_cnt: {}, version: {}",
-            self.id, self.flow_id, self.src, self.dst, self.packet_size, self.hop_cnt, self.version
+            "id: {}, flow_id: {}, src: {}, dst: {}, packet_size: {}, hop_cnt: {}",
+            self.id, self.flow_id, self.src, self.dst, self.packet_size, self.hop_cnt
         )
     }
 
@@ -178,7 +177,19 @@ impl CLog {
             dst: log.dst,
             packet_size: log.packet_size,
             hop_cnt: log.hop_cnt,
-            version: 0,
+        }
+    }
+
+    pub fn aggregate(&self, clog: &CLog) -> Self {
+        assert!(self.id == clog.id);
+
+        CLog {
+            id: self.id,
+            flow_id: self.flow_id,
+            src: self.src,
+            dst: self.dst,
+            packet_size: self.packet_size,
+            hop_cnt: self.hop_cnt + clog.hop_cnt,
         }
     }
 }
@@ -232,19 +243,19 @@ pub struct AggregationPrivateInput {
     pub hashes: Vec<[u8; 32]>,
 
     /*
+     * New logs since last aggregation round. Used to update the Merkle tree.
+     */
+    pub new_logs: Vec<Vec<Log>>,
+
+    /*
+     * Key: flow_id, Value: index in the Merkle tree
+     */
+    pub upserted_indices: HashMap<i32, i32>,
+
+    /*
      * Modified logs from the previous round. The BEFORE image.
      */
     pub modified_old: HashMap<i32, CLog>,
-
-    /*
-     * Modified logs from the current round. The AFTER image.
-     */
-    pub modified_new: HashMap<i32, CLog>,
-
-    /*
-     * Inserted logs from the current round.
-     */
-    pub inserted_new: Vec<CLog>,
 
     /*
      * Merkle tree from the previous round.
