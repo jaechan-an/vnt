@@ -163,6 +163,11 @@ async fn main() -> Result<(), Error> {
             .collect::<Vec<String>>()
             .join(", ")
     );
+    assert!(
+        upserted_indices.len() == diff_clogs.len(),
+        "Upserted indices count mismatch"
+    );
+
     for (flow_id, id) in &upserted_indices {
         diff_clogs.get_mut(&flow_id).unwrap().id = *id;
         info!("flow_id {} -> clog.id {}", flow_id, *id);
@@ -178,18 +183,6 @@ async fn main() -> Result<(), Error> {
     // Since we have the upserted_indices, we can use them to get the old and new clogs for the
     // diff. We just need to compare the clog.id with the upserted_indices values.
 
-    // Calculate the diffs
-    let old_clogs_map: HashMap<i32, CLog> = old_clogs
-        .iter()
-        .map(|clog| (clog.flow_id, clog.clone()))
-        .collect();
-    let new_clogs_map: HashMap<i32, CLog> = new_clogs
-        .iter()
-        .map(|clog| (clog.flow_id, clog.clone()))
-        .collect();
-
-    let modified_old: HashMap<i32, CLog> = get_modified_old_clogs(&old_clogs_map, &new_clogs_map);
-
     let serialized_tree = util::serialize_merkle_tree(&merkle_tree);
 
     let input = AggregationPrivateInput {
@@ -197,7 +190,9 @@ async fn main() -> Result<(), Error> {
         hashes: hashes,                     // All the hashes for logs table: Vec<[u8; 32]>
         new_logs: new_logs,                 // New logs since last seq: Vec<Vec<Log>>
         upserted_indices: upserted_indices, // Upserted indexes in the Merkle tree: HashMap<i32, i32>
-        modified_old: modified_old,         // Old CLogs that were modified: HashMap<i32, CLog>
+        diff_clogs: diff_clogs,             // Aggregated CLogs to be updated: HashMap<i32, CLog>
+        old_clogs: old_clogs,               // Old CLogs before update: Vec<CLog>
+        new_clogs: new_clogs,               // New CLogs after update: Vec<CLog>
         tree: serialized_tree,              // Previous Merkle tree: Vec<u8>
     };
 
@@ -292,10 +287,7 @@ async fn upsert_clogs(
             Ok(id) => {
                 if id >= 0 {
                     ids.insert(clog.flow_id, id);
-                    info!(
-                        "Upserted clog for id {}, flow_id {}, hop_cnt {}",
-                        id, clog.flow_id, clog.hop_cnt
-                    );
+                    info!("Upserted clog for id {}, flow_id {}", id, clog.flow_id);
                 }
             }
             Err(err) => {
@@ -307,19 +299,3 @@ async fn upsert_clogs(
     ids
 }
 
-/**
- * Calculate the difference between the aggregated logs and the existing CLogs.
- * Fetch only the OLD values.
- */
-fn get_modified_old_clogs(
-    old_clogs_map: &HashMap<i32, CLog>,
-    new_clogs_map: &HashMap<i32, CLog>,
-) -> HashMap<i32, CLog> {
-    old_clogs_map
-        .iter()
-        .filter_map(|(&flow_id, old_clog)| match new_clogs_map.get(&flow_id) {
-            Some(new_clog) if old_clog != new_clog => Some((flow_id, old_clog.clone())),
-            _ => None,
-        })
-        .collect()
-}

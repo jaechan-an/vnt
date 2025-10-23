@@ -57,13 +57,7 @@ fn main() {
     // If they don't match, the clogs are corrupted.
     start = env::cycle_count();
 
-    if prev_tree.leaves_len() == 0 {
-        // First round, no previous tree.
-        assert!(
-            input.modified_old.is_empty(),
-            "Tree is empty but modified_old is not"
-        );
-    } else {
+    if prev_tree.leaves_len() != 0 {
         println!(
             "Prev Merkle tree root: {}",
             hex::encode(prev_tree.root().unwrap())
@@ -77,16 +71,24 @@ fn main() {
         let mut indices_to_prove: Vec<usize> = Vec::new();
         let mut leaves_to_prove: Vec<[u8; 32]> = Vec::new();
 
-        for (_flow_id, clog) in &input.modified_old {
-            let idx = util::id_to_idx(clog.id);
+        for (_flow_id, id) in &input.upserted_indices {
+            let _old_clog = input.old_clogs.iter().find(|clog| &clog.id == id);
+
+            if _old_clog.is_none() {
+                continue;
+            }
+
+            let old_clog = _old_clog.unwrap();
+
+            let idx = util::id_to_idx(old_clog.id);
 
             indices_to_prove.push(idx);
-            leaves_to_prove.push(to_leaf(clog));
+            leaves_to_prove.push(to_leaf(old_clog));
             println!(
                 "Index to prove: {}, hash: {}, clog: {}",
-                clog.id,
-                hex::encode(to_leaf(clog)),
-                clog.to_string()
+                old_clog.id,
+                hex::encode(to_leaf(old_clog)),
+                old_clog.to_string()
             );
             println!(
                 "\tLeaf hash: {}",
@@ -97,12 +99,12 @@ fn main() {
         let merkle_proof = prev_tree.proof(&indices_to_prove);
         let merkle_root = prev_tree.root().unwrap();
 
-        merkle_proof.verify(
+        assert!(merkle_proof.verify(
             merkle_root,
             &indices_to_prove,
             &leaves_to_prove,
             prev_tree.leaves_len(),
-        );
+        ));
     }
 
     end = env::cycle_count();
@@ -119,23 +121,32 @@ fn main() {
     // We use the input.new_logs to aggregate the value to the original clogs.
     // The clog has the same idk
     let mut diff_clogs = aggregate_logs(&input.new_logs);
-    for (clog_flow_id, id) in &input.upserted_indices {
-        diff_clogs.get_mut(&clog_flow_id).unwrap().id = *id;
+    for (flow_id, id) in &input.upserted_indices {
+        assert!(diff_clogs.contains_key(&flow_id));
+        diff_clogs.get_mut(&flow_id).unwrap().id = *id;
     }
 
-    // 1. Iterate through the diff_clogs and UPDATE the leaves
+    // 1. Iterate through the upserted_indices and UPDATE the leaves
     let mut inserted_clogs: Vec<CLog> = Vec::new();
-    for (flow_id, clog) in diff_clogs.iter() {
-        if input.modified_old.contains_key(flow_id) {
-            let old_clog = input.modified_old.get(flow_id).unwrap();
+    for (flow_id, id) in &input.upserted_indices {
+        assert!(diff_clogs.contains_key(flow_id));
+
+        let clog = diff_clogs.get(flow_id).unwrap();
+
+        assert!(clog.id == *id);
+
+        let _old_clog = input.old_clogs.iter().find(|clog| &clog.id == id);
+        if _old_clog.is_none() {
+            // Insert will be handled after this for loop
+            inserted_clogs.push(clog.clone());
+        } else {
+            // Update the leaf
+            let old_clog = _old_clog.unwrap();
             let new_clog = old_clog.aggregate(clog);
             assert!(new_clog.id == clog.id, "CLog ID mismatch after aggregation");
 
             let idx = util::id_to_idx(clog.id);
             leaves[idx] = to_leaf(&new_clog);
-        } else {
-            // Insert will be handled later
-            inserted_clogs.push(clog.clone());
         }
     }
 
@@ -177,7 +188,7 @@ fn main() {
 
     println!("New Merkle tree leaves:");
     for (idx, leaf) in new_tree.leaves().unwrap().iter().enumerate() {
-        println!("\tIndex: {}, hash: {}", idx, hex::encode(leaf));
+        println!("\tIndex: {}, hash: {}", idx + 1, hex::encode(leaf));
     }
 
     // Step 4. Output the journal with the success status, Merkle tree, and root.

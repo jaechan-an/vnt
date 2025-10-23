@@ -253,9 +253,13 @@ pub struct AggregationPrivateInput {
     pub upserted_indices: HashMap<i32, i32>,
 
     /*
-     * Modified logs from the previous round. The BEFORE image.
+     * Key: flow_id, Value: CLog
      */
-    pub modified_old: HashMap<i32, CLog>,
+    pub diff_clogs: HashMap<i32, CLog>,
+
+    pub old_clogs: Vec<CLog>,
+
+    pub new_clogs: Vec<CLog>,
 
     /*
      * Merkle tree from the previous round.

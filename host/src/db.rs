@@ -126,7 +126,7 @@ pub async fn upsert_clog(client: &Client, clog: &CLog) -> Result<i32, Error> {
         VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (flow_id)
         DO
-        UPDATE SET src = $2, dst = $3, packet_size = $4, hop_cnt = $5
+        UPDATE SET src = $2, dst = $3, packet_size = $4, hop_cnt = clogs.hop_cnt + $5
         RETURNING id";
 
     let row = client
