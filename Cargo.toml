@@ -15,7 +15,7 @@ tokio-postgres = "0.7.13"
 bincode = "1.3"
 rand = "0.9.1"
 rs_merkle = "1.5.0"
-risc0-zkvm = "^2.1.0"
+risc0-zkvm = "^3.0"
 sha2 = "0.10.9"
 hex = "0.4.3"
 

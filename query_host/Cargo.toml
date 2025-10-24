@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 query_methods = { path = "../query_methods" }
 methods = { path = "../methods" }
-risc0-zkvm = { version = "^2.1.0" }
+risc0-zkvm = { version = "^3.0" }
 
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
