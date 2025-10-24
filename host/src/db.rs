@@ -1,7 +1,6 @@
-use tokio_postgres::{Client, Error, Row};
+use tokio_postgres::{Client, Row};
 
 use core::{CLog, Log};
-use tracing::debug;
 
 pub async fn get_logs(client: &Client, node_id: i32) -> Vec<Log> {
     let query = format!("SELECT * FROM logs_{}", node_id);
@@ -118,36 +117,6 @@ pub async fn get_clogs(client: &Client) -> Vec<CLog> {
     }
 
     clogs
-}
-
-pub async fn upsert_clog(client: &Client, clog: &CLog) -> Result<i32, Error> {
-    // UPSERT and return the id (offset of merkle tree)
-    let query = "INSERT INTO clogs (flow_id, src, dst, packet_size, hop_cnt)
-        VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (flow_id)
-        DO
-        UPDATE SET src = $2, dst = $3, packet_size = $4, hop_cnt = clogs.hop_cnt + $5
-        RETURNING id";
-
-    let row = client
-        .query_one(
-            query,
-            &[
-                &clog.flow_id,
-                &clog.src,
-                &clog.dst,
-                &clog.packet_size,
-                &clog.hop_cnt,
-            ],
-        )
-        .await
-        .expect("UPSERT error in clog");
-
-    let upserted_id: i32 = row.get(0);
-
-    debug!("Upserted CLog with id: {}", upserted_id);
-
-    Ok(upserted_id)
 }
 
 pub async fn update_aggregate_clog(client: &Client, clog: &CLog) -> i32 {
