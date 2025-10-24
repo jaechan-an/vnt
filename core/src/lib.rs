@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
 
-use std::collections::HashMap;
+use std::{collections::HashMap, hash::Hasher};
 
 pub mod log;
 pub mod util;
+pub mod merkle;
 
 #[cfg(any(feature = "host", feature = "simulator"))]
 pub mod postgres;
@@ -191,6 +192,14 @@ impl CLog {
             packet_size: self.packet_size,
             hop_cnt: self.hop_cnt + clog.hop_cnt,
         }
+    }
+}
+
+impl merkle_light::hash::Hashable<crate::merkle::ShaHasher> for CLog {
+    fn hash(&self, state: &mut crate::merkle::ShaHasher) {
+        let serialized =
+            bincode::serialize(self).expect("failed to serialize CLog for Merkle hashing");
+        state.write(&serialized);
     }
 }
 

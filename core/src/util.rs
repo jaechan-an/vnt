@@ -1,42 +1,24 @@
-use rs_merkle::algorithms::Sha256;
-use rs_merkle::MerkleTree;
+use crate::{merkle::MerkleTree, CLog};
 
 pub fn id_to_idx(id: i32) -> usize {
     (id - 1) as usize
 }
 
 /**
- * Serialize the Merkle tree to bytes. Manually serialize the leaf hashes.
+ * Serialize the Merkle tree elements to bytes.
  */
-pub fn serialize_merkle_tree(tree: &MerkleTree<Sha256>) -> Vec<u8> {
-    if tree.leaves_len() == 0 {
-        return vec![];
-    }
-
-    // Iterate through and serialize all the leaves
-    let mut v: Vec<u8> = Vec::new();
-    for leaf in tree.leaves().unwrap() {
-        v.extend_from_slice(&leaf);
-    }
-    bincode::serialize(&v).unwrap_or_else(|_| vec![])
+pub fn serialize_merkle_tree(tree: &MerkleTree<CLog>) -> Vec<u8> {
+    bincode::serialize(tree.elements()).unwrap_or_default()
 }
 
 /**
- * Deserialize the Merkle tree from bytes. Manually deserialize the leaf hashes.
+ * Deserialize the Merkle tree from bytes.
  */
-pub fn deserialize_merkle_tree(bytes: &[u8]) -> MerkleTree<Sha256> {
+pub fn deserialize_merkle_tree(bytes: &[u8]) -> MerkleTree<CLog> {
     if bytes.is_empty() {
-        return MerkleTree::<Sha256>::new();
+        return MerkleTree::new(Vec::new());
     }
 
-    let bytes = bincode::deserialize::<Vec<u8>>(bytes).unwrap_or_else(|_| vec![]);
-    let leaves = bytes
-        .chunks(32)
-        .map(|chunk| {
-            let mut array = [0u8; 32];
-            array.copy_from_slice(chunk);
-            array
-        })
-        .collect::<Vec<[u8; 32]>>();
-    MerkleTree::<Sha256>::from_leaves(&leaves)
+    let elements = bincode::deserialize(bytes).unwrap_or_else(|_| Vec::<CLog>::new());
+    MerkleTree::new(elements)
 }
