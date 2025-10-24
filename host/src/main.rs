@@ -145,32 +145,67 @@ async fn main() -> Result<(), Error> {
 
     // Must get before upsert
     let old_clogs: Vec<CLog> = db::get_clogs(&pg_client).await;
+    let old_clogs_map: HashMap<i32 /* flow_id */, CLog> = old_clogs
+        .iter()
+        .map(|clog| (clog.flow_id, clog.clone()))
+        .collect();
 
-    // TODO: Technically, upserting should happen only when the aggregation is
-    // verified. We could achieve this by having an indirection layer as discussed
-    // in the design doc. However, since this is a PoC version, we will do the upsert
-    // which also handles the indirection layer. Remember that the CLog.id is the index
-    // of the merkle tree + 1.
-    //
-    // Update or insert the aggregated CLogs into the database.
-    // This will give us the indices in the Merkle tree (i.e., indirection layer).
-    let upserted_indices = upsert_clogs(&pg_client, &diff_clogs).await;
-    info!(
-        "Updating Merkle tree indices: {}",
-        upserted_indices
-            .values()
-            .map(|n| n.to_string())
-            .collect::<Vec<String>>()
-            .join(", ")
+    // Distinguish the updates and inserts by checking the old clogs table.
+    // If it exists, we update. If not, we insert and use the id as clog.id.
+    // We DO NOT use the clog.id as the id. It's assigned during the database inserts.
+    let mut update_clogs: HashMap<i32 /* flow_id */, CLog> = diff_clogs
+        .iter()
+        .filter(|(flow_id, _clog)| old_clogs_map.contains_key(flow_id))
+        .map(|(flow_id, clog)| (*flow_id, clog.clone()))
+        .collect();
+    let mut insert_clogs: HashMap<i32 /* flow_id */, CLog> = diff_clogs
+        .iter()
+        .filter(|(flow_id, _clog)| !old_clogs_map.contains_key(flow_id))
+        .map(|(flow_id, clog)| (*flow_id, clog.clone()))
+        .collect();
+    // Check if update_clogs + insert_clogs = diff_clogs
+    assert!(
+        update_clogs.len() + insert_clogs.len() == diff_clogs.len(),
+        "Update + Insert clog count mismatch"
     );
     assert!(
-        upserted_indices.len() == diff_clogs.len(),
-        "Upserted indices count mismatch"
+        diff_clogs.keys().all(|flow_id| {
+            update_clogs.contains_key(flow_id) || insert_clogs.contains_key(flow_id)
+        }),
+        "Diff clogs keys mismatch"
+    );
+    // Update keys don't contain Insert keys
+    assert!(
+        update_clogs
+            .keys()
+            .all(|flow_id| !insert_clogs.contains_key(flow_id)),
+        "Update clogs contain insert clog keys"
     );
 
-    for (flow_id, id) in &upserted_indices {
-        diff_clogs.get_mut(&flow_id).unwrap().id = *id;
-        info!("flow_id {} -> clog.id {}", flow_id, *id);
+    info!("Old CLogs:");
+    for clog in old_clogs.iter() {
+        info!("  {}", clog.to_string());
+    }
+
+    info!("Update CLogs:");
+    for clog in update_clogs.values() {
+        info!("  {}", clog.to_string());
+    }
+    info!("Insert CLogs:");
+    for clog in insert_clogs.values() {
+        info!("  {}", clog.to_string());
+    }
+
+    /*
+     * Update database with new aggregated CLogs
+     */
+    for (flow_id, clog) in update_clogs.iter_mut() {
+        let id = db::update_aggregate_clog(&pg_client, &clog).await;
+        clog.id = id;
+    }
+    for (flow_id, clog) in insert_clogs.iter_mut() {
+        let id = db::insert_clog(&pg_client, &clog).await;
+        clog.id = id;
     }
 
     // Update the last sequence number in the database metadata
@@ -179,21 +214,48 @@ async fn main() -> Result<(), Error> {
     info!("Updated last_seq in DB metadata to {}", curr_seq);
 
     let new_clogs: Vec<CLog> = db::get_clogs(&pg_client).await;
+    let new_clogs_map: HashMap<i32 /* flow_id */, CLog> = new_clogs
+        .iter()
+        .map(|clog| (clog.flow_id, clog.clone()))
+        .collect();
 
-    // Since we have the upserted_indices, we can use them to get the old and new clogs for the
-    // diff. We just need to compare the clog.id with the upserted_indices values.
+    info!("New CLogs:");
+    for clog in new_clogs.iter() {
+        info!("  {}", clog.to_string());
+    }
+
+    // Check if the new clogs contain the match of update_clogs and exact match of insert_clogs
+    assert!(
+        update_clogs.iter().all(|(flow_id, clog)| {
+            new_clogs_map.contains_key(flow_id) && new_clogs_map.get(flow_id).unwrap().id == clog.id
+        }),
+        "Updated clogs not found in new clogs"
+    );
+    assert!(
+        insert_clogs.iter().all(|(flow_id, clog)| {
+            new_clogs_map.contains_key(flow_id) && new_clogs_map.get(flow_id).unwrap() == clog
+        }),
+        "Inserted clogs not found in new clogs"
+    );
 
     let serialized_tree = util::serialize_merkle_tree(&merkle_tree);
+    if merkle_tree.leaves_len() != 0 {
+        let deserialized = util::deserialize_merkle_tree(&serialized_tree);
+        assert!(
+            merkle_tree.root() == deserialized.root(),
+            "Merkle tree serialization/deserialization failed"
+        );
+    }
 
     let input = AggregationPrivateInput {
-        logs: logs,                         // All the logs from each nodes: Vec<Vec<Log>>
-        hashes: hashes,                     // All the hashes for logs table: Vec<[u8; 32]>
-        new_logs: new_logs,                 // New logs since last seq: Vec<Vec<Log>>
-        upserted_indices: upserted_indices, // Upserted indexes in the Merkle tree: HashMap<i32, i32>
-        diff_clogs: diff_clogs,             // Aggregated CLogs to be updated: HashMap<i32, CLog>
-        old_clogs: old_clogs,               // Old CLogs before update: Vec<CLog>
-        new_clogs: new_clogs,               // New CLogs after update: Vec<CLog>
-        tree: serialized_tree,              // Previous Merkle tree: Vec<u8>
+        logs: logs,                 // All the logs from each nodes: Vec<Vec<Log>>
+        hashes: hashes,             // All the hashes for logs table: Vec<[u8; 32]>
+        new_logs: new_logs,         // New logs since last seq: Vec<Vec<Log>>
+        update_clogs: update_clogs, //
+        insert_clogs: insert_clogs, //
+        old_clogs: old_clogs_map,   // Old CLogs before update
+        new_clogs: new_clogs_map,   // New CLogs after update
+        tree: serialized_tree,      // Previous Merkle tree: Vec<u8>
     };
 
     /*
@@ -298,4 +360,3 @@ async fn upsert_clogs(
 
     ids
 }
-

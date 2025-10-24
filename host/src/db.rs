@@ -150,6 +150,40 @@ pub async fn upsert_clog(client: &Client, clog: &CLog) -> Result<i32, Error> {
     Ok(upserted_id)
 }
 
+pub async fn update_aggregate_clog(client: &Client, clog: &CLog) -> i32 {
+    let query = "UPDATE clogs SET hop_cnt = clogs.hop_cnt + $1 WHERE flow_id = $2 RETURNING id";
+
+    let rows = client
+        .query_one(query, &[&clog.hop_cnt, &clog.flow_id])
+        .await
+        .expect("UPDATE error in clog");
+
+    let updated_id: i32 = rows.get(0);
+    updated_id
+}
+
+pub async fn insert_clog(client: &Client, clog: &CLog) -> i32 {
+    let query = "INSERT INTO clogs (flow_id, src, dst, packet_size, hop_cnt)
+        VALUES ($1, $2, $3, $4, $5) RETURNING id";
+
+    let row = client
+        .query_one(
+            query,
+            &[
+                &clog.flow_id,
+                &clog.src,
+                &clog.dst,
+                &clog.packet_size,
+                &clog.hop_cnt,
+            ],
+        )
+        .await
+        .expect("INSERT error in clog");
+
+    let inserted_id: i32 = row.get(0);
+    inserted_id
+}
+
 pub async fn get_hash(client: &Client, node_id: i32, round: i32) -> [u8; 32] {
     let query = "SELECT * FROM logs_hashes WHERE node_id = $1 AND round = $2";
     let row = client

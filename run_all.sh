@@ -7,10 +7,10 @@ mkdir -p exp
 # Example: 4 tables, 1000 records means 4 routers with a total of 1000 records.
 
 NUM_TABLES=4
-NUM_RECORDS_ARRAY=(50 100 500 1000 2000 3000)
-#NUM_RECORDS_ARRAY=(20)
+#NUM_RECORDS_ARRAY=(50 100 500 1000 2000 3000)
+NUM_RECORDS_ARRAY=(20)
 
-RELEASE_MODE=1
+RELEASE_MODE=0
 
 if [ "${RELEASE_MODE}" -eq 1 ]; then
   DEV_MODE=0
@@ -27,7 +27,6 @@ for NUM_RECORDS in "${NUM_RECORDS_ARRAY[@]}"; do
 
   rm -rf logs
   rm -rf receipts
-  rm output.txt
   mkdir -p exp/${NUM_RECORDS}
 
   # Run initial inserts to the tables
@@ -48,13 +47,13 @@ for NUM_RECORDS in "${NUM_RECORDS_ARRAY[@]}"; do
 
   RISC0_DEV_MODE=${DEV_MODE} cargo run ${RELEASE} --bin verify
 
-  sleep 5
+  #sleep 5
 
-  RISC0_DEV_MODE=${DEV_MODE} cargo run ${RELEASE} --bin query_host -- --tables=${NUM_TABLES}
+  #RISC0_DEV_MODE=${DEV_MODE} cargo run ${RELEASE} --bin query_host -- --tables=${NUM_TABLES}
 
-  RISC0_DEV_MODE=${DEV_MODE} cargo run ${RELEASE} --bin query_verify
+  #RISC0_DEV_MODE=${DEV_MODE} cargo run ${RELEASE} --bin query_verify
 
-  cp -r logs exp/${NUM_RECORDS}/logs
-  cp -r receipts exp/${NUM_RECORDS}/receipts
-  cp outptut.txt exp/${NUM_RECORDS}/output.txt
+  #cp -r logs exp/${NUM_RECORDS}/logs
+  #cp -r receipts exp/${NUM_RECORDS}/receipts
+  #cp outptut.txt exp/${NUM_RECORDS}/output.txt
 done

@@ -247,19 +247,11 @@ pub struct AggregationPrivateInput {
      */
     pub new_logs: Vec<Vec<Log>>,
 
-    /*
-     * Key: flow_id, Value: index in the Merkle tree
-     */
-    pub upserted_indices: HashMap<i32, i32>,
+    pub update_clogs: HashMap<i32 /* flow_id */, CLog>, // UPDATE CLogs with additional hop_count
+    pub insert_clogs: HashMap<i32 /* flow_id */, CLog>, // INSERT new CLogs
 
-    /*
-     * Key: flow_id, Value: CLog
-     */
-    pub diff_clogs: HashMap<i32, CLog>,
-
-    pub old_clogs: Vec<CLog>,
-
-    pub new_clogs: Vec<CLog>,
+    pub old_clogs: HashMap<i32 /* flow_id */, CLog>,
+    pub new_clogs: HashMap<i32 /* flow_id */, CLog>,
 
     /*
      * Merkle tree from the previous round.
