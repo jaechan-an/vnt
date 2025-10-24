@@ -1,12 +1,10 @@
-use risc0_zkvm::guest::env;
-
 use bincode;
-use core::{util, AggregationJournal, AggregationPrivateInput, CLog, Log};
+use core::{merkle::MerkleTree, util, AggregationJournal, AggregationPrivateInput, CLog, Log};
 use hex;
-use rs_merkle::{Hasher, MerkleTree};
+use risc0_zkvm::guest::env;
 use sha2;
 use sha2::Digest;
-use std::collections::HashMap;
+use std::{collections::HashMap, convert::TryInto};
 
 fn main() {
     let mut start = env::cycle_count();
@@ -58,53 +56,29 @@ fn main() {
     start = env::cycle_count();
 
     if prev_tree.leaves_len() != 0 {
+        let prev_root = prev_tree.root();
         println!(
             "Prev Merkle tree root: {}",
-            hex::encode(prev_tree.root().unwrap())
+            hex::encode(prev_root.as_bytes())
         );
-        println!("Prev Merkle tree leaves:");
-        for (idx, leaf) in prev_tree.leaves().unwrap().iter().enumerate() {
-            println!("\tIndex: {}, hash: {}", idx, hex::encode(leaf));
+        println!("Prev Merkle tree entries:");
+        for (idx, clog) in prev_tree.elements().iter().enumerate() {
+            println!("\tIndex: {}, clog: {}", idx + 1, clog.to_string());
         }
-
-        // Verify that the modified_old logs match the previous Merkle tree.
-        let mut indices_to_prove: Vec<usize> = Vec::new();
-        let mut leaves_to_prove: Vec<[u8; 32]> = Vec::new();
 
         for (_flow_id, id) in &input.upserted_indices {
-            let _old_clog = input.old_clogs.iter().find(|clog| &clog.id == id);
-
-            if _old_clog.is_none() {
-                continue;
+            if let Some(old_clog) = input.old_clogs.iter().find(|clog| &clog.id == id) {
+                let idx = util::id_to_idx(old_clog.id);
+                let proof = prev_tree.prove(idx);
+                println!(
+                    "Index to prove: {}, clog: {}",
+                    old_clog.id,
+                    old_clog.to_string()
+                );
+                assert_eq!(idx, proof.index());
+                assert!(proof.verify(&prev_root, old_clog));
             }
-
-            let old_clog = _old_clog.unwrap();
-
-            let idx = util::id_to_idx(old_clog.id);
-
-            indices_to_prove.push(idx);
-            leaves_to_prove.push(to_leaf(old_clog));
-            println!(
-                "Index to prove: {}, hash: {}, clog: {}",
-                old_clog.id,
-                hex::encode(to_leaf(old_clog)),
-                old_clog.to_string()
-            );
-            println!(
-                "\tLeaf hash: {}",
-                hex::encode(prev_tree.leaves().unwrap()[idx])
-            );
         }
-
-        let merkle_proof = prev_tree.proof(&indices_to_prove);
-        let merkle_root = prev_tree.root().unwrap();
-
-        assert!(merkle_proof.verify(
-            merkle_root,
-            &indices_to_prove,
-            &leaves_to_prove,
-            prev_tree.leaves_len(),
-        ));
     }
 
     end = env::cycle_count();
@@ -115,7 +89,7 @@ fn main() {
     // be used to verify the integrity of the logs in the next round.
     start = env::cycle_count();
 
-    let mut leaves = prev_tree.leaves().unwrap_or_else(|| vec![]);
+    let mut elements: Vec<CLog> = prev_tree.elements().to_vec();
 
     // TODO: For each in input.modified_old, update the corresponding leaf in the Merkle tree.
     // We use the input.new_logs to aggregate the value to the original clogs.
@@ -135,18 +109,23 @@ fn main() {
 
         assert!(clog.id == *id);
 
-        let _old_clog = input.old_clogs.iter().find(|clog| &clog.id == id);
-        if _old_clog.is_none() {
-            // Insert will be handled after this for loop
-            inserted_clogs.push(clog.clone());
-        } else {
-            // Update the leaf
-            let old_clog = _old_clog.unwrap();
+        if let Some(old_clog) = input.old_clogs.iter().find(|clog| &clog.id == id) {
             let new_clog = old_clog.aggregate(clog);
-            assert!(new_clog.id == clog.id, "CLog ID mismatch after aggregation");
+            assert!(
+                new_clog.id == clog.id,
+                "CLog ID mismatch after aggregation"
+            );
 
             let idx = util::id_to_idx(clog.id);
-            leaves[idx] = to_leaf(&new_clog);
+            assert!(
+                idx < elements.len(),
+                "Index {} out of bounds for existing Merkle elements",
+                idx
+            );
+            elements[idx] = new_clog;
+        } else {
+            // Insert will be handled after this for loop
+            inserted_clogs.push(clog.clone());
         }
     }
 
@@ -159,43 +138,42 @@ fn main() {
 
     // 3. Append the new clogs to the end
     for clog in &sorted_inserted_clogs {
-        let leaf = to_leaf(clog);
-
         // Insert the new clog
-        leaves.push(leaf);
+        elements.push(clog.clone());
         println!(
-            "Index Inserted: {}, hash: {}, clog: {}",
-            clog.id,
-            hex::encode(leaf),
-            clog.to_string()
+            "Index Inserted: {}, clog: {}",
+            clog.id, clog.to_string()
         );
     }
 
-    println!("New leaves {}", leaves.len());
+    println!("New elements {}", elements.len());
 
-    // Build the new Merkle tree from the updated leaves
-    let mut new_tree = MerkleTree::<rs_merkle::algorithms::Sha256>::from_leaves(&leaves);
-    new_tree.commit();
+    // Build the new Merkle tree from the updated elements
+    let new_tree = MerkleTree::new(elements);
 
+    let new_root = new_tree.root();
     println!(
         "New Merkle tree root: {}",
-        hex::encode(new_tree.root().unwrap())
+        hex::encode(new_root.as_bytes())
     );
 
     end = env::cycle_count();
     println!("New Merkle tree built in {} cycles", end - start);
     println!("Merkle tree depth: {}", new_tree.depth());
 
-    println!("New Merkle tree leaves:");
-    for (idx, leaf) in new_tree.leaves().unwrap().iter().enumerate() {
-        println!("\tIndex: {}, hash: {}", idx + 1, hex::encode(leaf));
+    println!("New Merkle tree elements:");
+    for (idx, clog) in new_tree.elements().iter().enumerate() {
+        println!("\tIndex: {}, clog: {}", idx + 1, clog.to_string());
     }
 
     // Step 4. Output the journal with the success status, Merkle tree, and root.
     start = env::cycle_count();
 
     let bytes = util::serialize_merkle_tree(&new_tree);
-    let root = new_tree.root().unwrap();
+    let root: [u8; 32] = new_root
+        .as_bytes()
+        .try_into()
+        .expect("Digest must be 32 bytes");
 
     let journal = AggregationJournal {
         success: success,
@@ -208,11 +186,6 @@ fn main() {
 
     end = env::cycle_count();
     println!("Journal committed in {} cycles", end - start);
-}
-
-fn to_leaf(clog: &CLog) -> [u8; 32] {
-    let serialized = bincode::serialize(clog).unwrap();
-    rs_merkle::algorithms::Sha256::hash(&serialized)
 }
 
 /**

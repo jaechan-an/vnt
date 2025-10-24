@@ -45,7 +45,7 @@ pub struct MerkleTree<Element>
 where
     Element: Hashable<ShaHasher>,
 {
-    tree: merkle::MerkleTree<Node, ShaHasher>,
+    tree: Option<merkle::MerkleTree<Node, ShaHasher>>,
     elements: Vec<Element>,
 }
 
@@ -54,10 +54,21 @@ where
     Element: Hashable<ShaHasher>,
 {
     pub fn new(elements: Vec<Element>) -> Self {
-        Self {
-            tree: merkle::MerkleTree::<_, ShaHasher>::from_data(elements.iter()),
-            elements,
-        }
+        let tree = match elements.len() {
+            0 => None,
+            1 => {
+                let elem_ref = elements.first().unwrap();
+                let dup_iter = [elem_ref, elem_ref];
+                Some(merkle::MerkleTree::<_, ShaHasher>::from_data(
+                    dup_iter.into_iter(),
+                ))
+            }
+            _ => Some(merkle::MerkleTree::<_, ShaHasher>::from_data(
+                elements.iter(),
+            )),
+        };
+
+        Self { tree, elements }
     }
 
     pub fn elements(&self) -> &[Element] {
@@ -65,7 +76,30 @@ where
     }
 
     pub fn prove(&self, i: usize) -> Proof<Element> {
-        self.tree.gen_proof(i).into()
+        self.tree
+            .as_ref()
+            .expect("cannot generate proof for empty Merkle tree")
+            .gen_proof(i)
+            .into()
+    }
+
+    pub fn leaves_len(&self) -> usize {
+        self.elements.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.elements.is_empty()
+    }
+
+    pub fn depth(&self) -> usize {
+        self.tree.as_ref().map(|tree| tree.height()).unwrap_or(0)
+    }
+
+    pub fn root(&self) -> Node {
+        self.tree
+            .as_ref()
+            .map(|tree| tree.root())
+            .unwrap_or_else(Node::default)
     }
 }
 
@@ -92,18 +126,6 @@ where
             assert!(proof.verify(&self.root(), value));
             Ok(bincode::serialize(&(value, proof)).unwrap().into())
         }
-    }
-}
-
-// Implement Deref so that all the methods on the wrapped type are accessible.
-impl<Element> Deref for MerkleTree<Element>
-where
-    Element: Hashable<ShaHasher>,
-{
-    type Target = merkle::MerkleTree<Node, ShaHasher>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.tree
     }
 }
 

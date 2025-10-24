@@ -4,7 +4,6 @@ use methods::VNT_ZKP_ELF;
 use risc0_zkvm::{default_prover, ExecutorEnv, ProverOpts, Receipt};
 
 use clap::Parser;
-use rs_merkle::{algorithms, MerkleTree};
 use tokio_postgres::{Client, Error};
 
 use std::{collections::HashMap, fs, path::Path, time::Instant};
@@ -14,7 +13,16 @@ use tracing_appender::rolling;
 use tracing_subscriber::fmt::layer;
 use tracing_subscriber::prelude::*;
 
-use core::{log, postgres::Postgres, util, AggregationJournal, AggregationPrivateInput, CLog, Log};
+use core::{
+    log,
+    merkle::MerkleTree as CLogMerkleTree,
+    postgres::Postgres,
+    util,
+    AggregationJournal,
+    AggregationPrivateInput,
+    CLog,
+    Log,
+};
 
 mod db;
 
@@ -86,7 +94,7 @@ async fn main() -> Result<(), Error> {
     let receiptdir = Path::new(".").join(&args.receiptdir);
     let aggregation_receiptfile = receiptdir.join(&args.receiptfile);
 
-    let merkle_tree: MerkleTree<algorithms::Sha256>;
+    let merkle_tree: CLogMerkleTree<CLog>;
     if receiptdir.exists() && aggregation_receiptfile.exists() {
         let aggregation_receipt: Receipt =
             bincode::deserialize(&fs::read(&aggregation_receiptfile).unwrap()).unwrap();
@@ -98,7 +106,7 @@ async fn main() -> Result<(), Error> {
             merkle_tree.leaves_len()
         );
     } else {
-        merkle_tree = MerkleTree::new();
+        merkle_tree = CLogMerkleTree::new(Vec::new());
         info!("No previous Merkle tree found, starting fresh");
     }
 
@@ -298,4 +306,3 @@ async fn upsert_clogs(
 
     ids
 }
-

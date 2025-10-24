@@ -21,8 +21,9 @@ tracing = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
 tracing-appender = { workspace = true, optional = true }
 
-rs_merkle = { workspace = true, optional = true }
 bincode = { workspace = true, optional = true }
+merkle_light = { workspace = true, optional = true }
+risc0-zkvm = { workspace = true }
 
 [features]
 default = [
@@ -30,7 +31,7 @@ default = [
   "dep:tracing",
   "dep:tracing-subscriber",
   "dep:tracing-appender",
-  "dep:rs_merkle",
+  "dep:merkle_light",
   "dep:bincode",
 ]
 host = [

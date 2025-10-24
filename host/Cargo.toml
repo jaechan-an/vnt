@@ -16,6 +16,5 @@ clap = { workspace = true }
 bincode = { workspace = true }
 tokio = { workspace = true }
 tokio-postgres = { workspace = true }
-rs_merkle = { workspace = true }
 
 core = { path = "../core" , features = ["host"]}
