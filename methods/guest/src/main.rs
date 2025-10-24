@@ -4,7 +4,7 @@ use hex;
 use risc0_zkvm::guest::env;
 use sha2;
 use sha2::Digest;
-use std::{collections::HashMap, convert::TryInto};
+use std::convert::TryInto;
 
 fn main() {
     let mut start = env::cycle_count();
@@ -102,11 +102,15 @@ fn main() {
         elements[idx] = new_clog;
     }
 
-    // Insert new leaves at the end, ordered by clog id.
-    let mut inserted_clogs: Vec<CLog> = input.insert_clogs.values().cloned().collect();
-    inserted_clogs.sort_by_key(|clog| clog.id);
+    /*
+     * Insert to the merkle tree
+     */
+    let mut sorted_inserts: Vec<(&i32, &CLog)> = input.insert_clogs.iter().collect();
+    sorted_inserts.sort_by_key(|(_, clog)| clog.id);
+    for (flow_id, clog) in sorted_inserts {
+        assert!(input.old_clogs.get(flow_id).is_none());
+        println!("{} for {}, {}", clog.id, clog.flow_id, clog.hop_cnt);
 
-    for clog in &inserted_clogs {
         elements.push(clog.clone());
         println!(
             "Index Inserted: {}, clog: {}",
@@ -174,26 +178,4 @@ fn compute_hash(logs: &Vec<Log>) -> [u8; 32] {
     }
 
     hasher.finalize().into()
-}
-
-/**
- * Aggregates logs from all nodes into a single HashMap where the key is the flow_id.
- * The CLog struct is used to represent the aggregated log.
- */
-fn aggregate_logs(new_logs: &Vec<Vec<Log>>) -> HashMap<i32 /* flow_id */, CLog> {
-    let mut aggregated_map = HashMap::<i32, CLog>::new();
-
-    for logs in new_logs {
-        for log in logs {
-            let key = log.flow_id;
-
-            // If key exists, modify it; otherwise, insert a new value
-            aggregated_map
-                .entry(key)
-                .and_modify(|clog: &mut CLog| clog.hop_cnt += log.hop_cnt)
-                .or_insert(CLog::from_log(&log));
-        }
-    }
-
-    aggregated_map
 }

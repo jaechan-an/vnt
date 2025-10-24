@@ -47,13 +47,14 @@ for NUM_RECORDS in "${NUM_RECORDS_ARRAY[@]}"; do
 
   RISC0_DEV_MODE=${DEV_MODE} cargo run ${RELEASE} --bin verify
 
-  #sleep 5
+  sleep 5
 
-  #RISC0_DEV_MODE=${DEV_MODE} cargo run ${RELEASE} --bin query_host -- --tables=${NUM_TABLES}
+  RISC0_DEV_MODE=${DEV_MODE} cargo run ${RELEASE} --bin query_host -- --tables=${NUM_TABLES}
 
-  #RISC0_DEV_MODE=${DEV_MODE} cargo run ${RELEASE} --bin query_verify
+  RISC0_DEV_MODE=${DEV_MODE} cargo run ${RELEASE} --bin query_verify
 
-  #cp -r logs exp/${NUM_RECORDS}/logs
-  #cp -r receipts exp/${NUM_RECORDS}/receipts
-  #cp outptut.txt exp/${NUM_RECORDS}/output.txt
+  cp -r logs exp/${NUM_RECORDS}/logs
+  cp -r receipts exp/${NUM_RECORDS}/receipts
 done
+
+cp outptut.txt exp/output.txt

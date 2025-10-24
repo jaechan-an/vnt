@@ -4,7 +4,7 @@ use methods::VNT_ZKP_ELF;
 use risc0_zkvm::{default_prover, ExecutorEnv, ProverOpts, Receipt};
 
 use clap::Parser;
-use tokio_postgres::{Client, Error};
+use tokio_postgres::Error;
 
 use std::{collections::HashMap, fs, path::Path, time::Instant};
 
@@ -149,7 +149,7 @@ async fn main() -> Result<(), Error> {
     assert!(new_logs.len() != 0, "No logs found to process");
 
     // Calculate the CLogs to insert or update (without the ids yet)
-    let mut diff_clogs = aggregate_logs(&new_logs);
+    let diff_clogs = aggregate_logs(&new_logs);
 
     // Must get before upsert
     let old_clogs: Vec<CLog> = db::get_clogs(&pg_client).await;
@@ -195,6 +195,18 @@ async fn main() -> Result<(), Error> {
         info!("  {}", clog.to_string());
     }
 
+    /*
+     * Update database with new aggregated CLogs
+     */
+    for (_flow_id, clog) in update_clogs.iter_mut() {
+        let id = db::update_aggregate_clog(&pg_client, &clog).await;
+        clog.id = id;
+    }
+    for (_flow_id, clog) in insert_clogs.iter_mut() {
+        let id = db::insert_clog(&pg_client, &clog).await;
+        clog.id = id;
+    }
+
     info!("Update CLogs:");
     for clog in update_clogs.values() {
         info!("  {}", clog.to_string());
@@ -202,18 +214,6 @@ async fn main() -> Result<(), Error> {
     info!("Insert CLogs:");
     for clog in insert_clogs.values() {
         info!("  {}", clog.to_string());
-    }
-
-    /*
-     * Update database with new aggregated CLogs
-     */
-    for (flow_id, clog) in update_clogs.iter_mut() {
-        let id = db::update_aggregate_clog(&pg_client, &clog).await;
-        clog.id = id;
-    }
-    for (flow_id, clog) in insert_clogs.iter_mut() {
-        let id = db::insert_clog(&pg_client, &clog).await;
-        clog.id = id;
     }
 
     // Update the last sequence number in the database metadata
@@ -337,34 +337,4 @@ fn aggregate_logs(new_logs: &Vec<Vec<Log>>) -> HashMap<i32 /* flow_id */, CLog> 
     }
 
     aggregated_map
-}
-
-/**
- * Upserts the aggregated logs into the central logs table and returns the indices of the
- * Merkle tree entries that were updated.
- */
-async fn upsert_clogs(
-    client: &Client,
-    diff: &HashMap<i32, CLog>,
-) -> HashMap<i32 /* flow_id */, i32 /* id */> {
-    let mut ids = HashMap::new();
-
-    // UPSERT aggregated logs into central logs table
-    for entry in diff {
-        let clog = entry.1;
-
-        match db::upsert_clog(&client, &clog).await {
-            Ok(id) => {
-                if id >= 0 {
-                    ids.insert(clog.flow_id, id);
-                    info!("Upserted clog for id {}, flow_id {}", id, clog.flow_id);
-                }
-            }
-            Err(err) => {
-                error!("Failed to upsert clog: {}", err);
-            }
-        };
-    }
-
-    ids
 }
