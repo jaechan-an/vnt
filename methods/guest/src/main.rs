@@ -17,8 +17,8 @@ fn main() {
 
     println!("Input read in {} cycles", end - start);
 
-    let mut success = true;
-    let mut message: String = String::from("Aggregation successful");
+    let success = true;
+    let message: String = String::from("Aggregation successful");
 
     // Step 1. Compute the hash of the logs and compare with the input hashes.
     // The n'th hash is the hash of the n'th log. If it doesn't match, the logs are corrupted.
