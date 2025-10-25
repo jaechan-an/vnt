@@ -1,0 +1,5 @@
+2025-10-24T23:18:51.362092Z  INFO query_verify: Verifying receipt file: ./receipts/query.bin
+2025-10-24T23:18:51.365596Z  INFO query_verify: Message: src 1 to dst 0 hop_cnt: 8
+2025-10-24T23:18:51.365602Z  INFO query_verify: Journal size: 36 bytes
+2025-10-24T23:18:51.365603Z  INFO query_verify: Seal size: 256 bytes
+2025-10-24T23:18:51.365604Z  INFO query_verify: Execution took 3 ms

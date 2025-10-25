@@ -1,0 +1,31 @@
+2025-10-24T23:00:21.051560Z  INFO simulator: Starting simulator with args: Args { logdir: "logs", logfile: "simulator", logfilter: "INFO", tables: 4, records: 50, update_only: false }
+2025-10-24T23:00:21.051600Z  INFO core::postgres: DB connection URL: host=localhost user=vns password=vns dbname=vns
+2025-10-24T23:00:21.055669Z  INFO simulator: Starting worker for table 1
+2025-10-24T23:00:21.055666Z  INFO simulator: Starting worker for table 0
+2025-10-24T23:00:21.055680Z  INFO simulator: Starting worker for table 2
+2025-10-24T23:00:21.055696Z  INFO simulator: Starting worker for table 3
+2025-10-24T23:00:21.055696Z  INFO simulator: Starting hash generation
+2025-10-24T23:00:21.057729Z  INFO simulator: Generating hash for all logs, round: 1
+2025-10-24T23:00:21.066515Z  INFO simulator: No logs found for table 0
+2025-10-24T23:00:21.330059Z  INFO simulator: Worker 1 completed its task
+2025-10-24T23:00:21.332005Z  INFO simulator: Worker 0 completed its task
+2025-10-24T23:00:21.333932Z  INFO simulator: Worker 3 completed its task
+2025-10-24T23:00:21.335845Z  INFO simulator: Worker 2 completed its task
+2025-10-24T23:00:26.135062Z  INFO simulator: Generating hash for all logs, round: 2
+2025-10-24T23:00:26.158798Z  INFO simulator: All workers have completed their tasks
+2025-10-24T23:00:26.158810Z  INFO simulator: Total records processed: 51
+2025-10-24T23:03:11.211600Z  INFO simulator: Starting simulator with args: Args { logdir: "logs", logfile: "simulator", logfilter: "INFO", tables: 4, records: 50, update_only: true }
+2025-10-24T23:03:11.211646Z  INFO core::postgres: DB connection URL: host=localhost user=vns password=vns dbname=vns
+2025-10-24T23:03:11.215451Z  INFO simulator: Starting worker for table 0
+2025-10-24T23:03:11.215458Z  INFO simulator: Starting worker for table 1
+2025-10-24T23:03:11.215467Z  INFO simulator: Starting worker for table 3
+2025-10-24T23:03:11.215469Z  INFO simulator: Starting hash generation
+2025-10-24T23:03:11.215472Z  INFO simulator: Starting worker for table 2
+2025-10-24T23:03:11.216845Z  INFO simulator: Generating hash for all logs, round: 3
+2025-10-24T23:03:11.328746Z  INFO simulator: Worker 0 completed its task
+2025-10-24T23:03:11.330716Z  INFO simulator: Worker 3 completed its task
+2025-10-24T23:03:11.332690Z  INFO simulator: Worker 2 completed its task
+2025-10-24T23:03:11.334784Z  INFO simulator: Worker 1 completed its task
+2025-10-24T23:03:16.300083Z  INFO simulator: Generating hash for all logs, round: 4
+2025-10-24T23:03:16.314442Z  INFO simulator: All workers have completed their tasks
+2025-10-24T23:03:16.314447Z  INFO simulator: Total records processed: 53

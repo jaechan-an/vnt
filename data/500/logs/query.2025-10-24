@@ -1,0 +1,8 @@
+2025-10-24T23:45:17.814225Z  INFO core::postgres: DB connection URL: host=localhost user=vns password=vns dbname=vns
+2025-10-24T23:45:17.817627Z  INFO query_host: Starting query prover
+2025-10-24T23:45:17.817642Z  INFO query_host: Verifying aggregation receipt file: ./receipts/aggregation_receipt.bin
+2025-10-24T23:45:17.822847Z  INFO query_host: Querying from src: 0, dst: 1, total logs: 304
+2025-10-24T23:48:18.932614Z  INFO query_host: Receipt wrote to ./receipts/query.bin
+2025-10-24T23:48:18.932625Z  INFO query_host: Journal size: 36 bytes
+2025-10-24T23:48:18.932626Z  INFO query_host: Seal size: 256 bytes
+2025-10-24T23:48:18.932627Z  INFO query_host: Execution took 181109 ms

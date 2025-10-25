@@ -1,0 +1,305 @@
+2025-10-24T23:09:54.116852Z  INFO core::postgres: DB connection URL: host=localhost user=vns password=vns dbname=vns
+2025-10-24T23:09:54.119026Z  INFO host: Starting aggregation prover
+2025-10-24T23:09:54.119034Z  INFO host: No previous Merkle tree found, starting fresh
+2025-10-24T23:09:54.119811Z  INFO host: Processing new logs from seq > 0
+2025-10-24T23:09:54.120177Z  INFO host: Fetched 17 logs from table 0
+2025-10-24T23:09:54.120565Z  INFO host: Fetched 34 logs from table 1
+2025-10-24T23:09:54.120871Z  INFO host: Fetched 34 logs from table 2
+2025-10-24T23:09:54.121167Z  INFO host: Fetched 16 logs from table 3
+2025-10-24T23:09:54.121277Z  INFO host: Total logs fetched from all tables: 101
+2025-10-24T23:09:54.122009Z  INFO host: Old CLogs:
+2025-10-24T23:09:54.244285Z  INFO host: Update CLogs:
+2025-10-24T23:09:54.244291Z  INFO host: Insert CLogs:
+2025-10-24T23:09:54.244294Z  INFO host:   id: 1, flow_id: 46, src: 1, dst: 2, packet_size: 55, hop_cnt: 1
+2025-10-24T23:09:54.244297Z  INFO host:   id: 2, flow_id: 71, src: 3, dst: 0, packet_size: 53, hop_cnt: 6
+2025-10-24T23:09:54.244299Z  INFO host:   id: 3, flow_id: 17, src: 3, dst: 2, packet_size: 14, hop_cnt: 1
+2025-10-24T23:09:54.244301Z  INFO host:   id: 4, flow_id: 15, src: 0, dst: 2, packet_size: 69, hop_cnt: 3
+2025-10-24T23:09:54.244303Z  INFO host:   id: 5, flow_id: 60, src: 1, dst: 2, packet_size: 29, hop_cnt: 1
+2025-10-24T23:09:54.244305Z  INFO host:   id: 6, flow_id: 65, src: 2, dst: 3, packet_size: 51, hop_cnt: 1
+2025-10-24T23:09:54.244306Z  INFO host:   id: 7, flow_id: 10, src: 2, dst: 0, packet_size: 66, hop_cnt: 3
+2025-10-24T23:09:54.244308Z  INFO host:   id: 8, flow_id: 51, src: 2, dst: 0, packet_size: 63, hop_cnt: 3
+2025-10-24T23:09:54.244310Z  INFO host:   id: 9, flow_id: 19, src: 1, dst: 0, packet_size: 53, hop_cnt: 1
+2025-10-24T23:09:54.244313Z  INFO host:   id: 10, flow_id: 43, src: 0, dst: 2, packet_size: 85, hop_cnt: 3
+2025-10-24T23:09:54.244315Z  INFO host:   id: 11, flow_id: 53, src: 0, dst: 3, packet_size: 60, hop_cnt: 6
+2025-10-24T23:09:54.244317Z  INFO host:   id: 12, flow_id: 3, src: 0, dst: 1, packet_size: 1, hop_cnt: 1
+2025-10-24T23:09:54.244319Z  INFO host:   id: 13, flow_id: 66, src: 3, dst: 0, packet_size: 55, hop_cnt: 6
+2025-10-24T23:09:54.244321Z  INFO host:   id: 14, flow_id: 67, src: 0, dst: 3, packet_size: 40, hop_cnt: 6
+2025-10-24T23:09:54.244323Z  INFO host:   id: 15, flow_id: 8, src: 1, dst: 0, packet_size: 14, hop_cnt: 1
+2025-10-24T23:09:54.244324Z  INFO host:   id: 16, flow_id: 14, src: 1, dst: 2, packet_size: 93, hop_cnt: 1
+2025-10-24T23:09:54.244325Z  INFO host:   id: 17, flow_id: 27, src: 1, dst: 3, packet_size: 26, hop_cnt: 3
+2025-10-24T23:09:54.244326Z  INFO host:   id: 18, flow_id: 22, src: 1, dst: 3, packet_size: 54, hop_cnt: 3
+2025-10-24T23:09:54.244327Z  INFO host:   id: 19, flow_id: 36, src: 3, dst: 2, packet_size: 92, hop_cnt: 1
+2025-10-24T23:09:54.244328Z  INFO host:   id: 20, flow_id: 7, src: 0, dst: 3, packet_size: 15, hop_cnt: 6
+2025-10-24T23:09:54.244329Z  INFO host:   id: 21, flow_id: 11, src: 1, dst: 0, packet_size: 37, hop_cnt: 1
+2025-10-24T23:09:54.244330Z  INFO host:   id: 22, flow_id: 33, src: 1, dst: 3, packet_size: 59, hop_cnt: 3
+2025-10-24T23:09:54.244331Z  INFO host:   id: 23, flow_id: 45, src: 3, dst: 0, packet_size: 94, hop_cnt: 6
+2025-10-24T23:09:54.244332Z  INFO host:   id: 24, flow_id: 64, src: 0, dst: 1, packet_size: 26, hop_cnt: 1
+2025-10-24T23:09:54.244333Z  INFO host:   id: 25, flow_id: 37, src: 0, dst: 3, packet_size: 95, hop_cnt: 6
+2025-10-24T23:09:54.244334Z  INFO host:   id: 26, flow_id: 29, src: 3, dst: 1, packet_size: 19, hop_cnt: 3
+2025-10-24T23:09:54.244335Z  INFO host:   id: 27, flow_id: 52, src: 3, dst: 1, packet_size: 76, hop_cnt: 3
+2025-10-24T23:09:54.244336Z  INFO host:   id: 28, flow_id: 21, src: 0, dst: 2, packet_size: 11, hop_cnt: 3
+2025-10-24T23:09:54.244337Z  INFO host:   id: 29, flow_id: 40, src: 3, dst: 0, packet_size: 11, hop_cnt: 6
+2025-10-24T23:09:54.244338Z  INFO host:   id: 30, flow_id: 58, src: 0, dst: 1, packet_size: 39, hop_cnt: 1
+2025-10-24T23:09:54.244340Z  INFO host:   id: 31, flow_id: 6, src: 2, dst: 0, packet_size: 30, hop_cnt: 3
+2025-10-24T23:09:54.244341Z  INFO host:   id: 32, flow_id: 55, src: 2, dst: 3, packet_size: 66, hop_cnt: 1
+2025-10-24T23:09:54.244342Z  INFO host:   id: 33, flow_id: 73, src: 1, dst: 2, packet_size: 30, hop_cnt: 1
+2025-10-24T23:09:54.244343Z  INFO host:   id: 34, flow_id: 2, src: 3, dst: 1, packet_size: 46, hop_cnt: 3
+2025-10-24T23:09:54.244344Z  INFO host:   id: 35, flow_id: 76, src: 1, dst: 3, packet_size: 97, hop_cnt: 3
+2025-10-24T23:09:54.244345Z  INFO host:   id: 36, flow_id: 56, src: 3, dst: 0, packet_size: 89, hop_cnt: 6
+2025-10-24T23:09:54.244346Z  INFO host:   id: 37, flow_id: 41, src: 2, dst: 1, packet_size: 86, hop_cnt: 1
+2025-10-24T23:09:54.244347Z  INFO host:   id: 38, flow_id: 24, src: 2, dst: 0, packet_size: 81, hop_cnt: 3
+2025-10-24T23:09:54.244348Z  INFO host:   id: 39, flow_id: 63, src: 1, dst: 3, packet_size: 58, hop_cnt: 3
+2025-10-24T23:09:54.244349Z  INFO host:   id: 40, flow_id: 31, src: 0, dst: 2, packet_size: 83, hop_cnt: 3
+2025-10-24T23:09:54.244350Z  INFO host:   id: 41, flow_id: 25, src: 0, dst: 1, packet_size: 22, hop_cnt: 1
+2025-10-24T23:09:54.244351Z  INFO host:   id: 42, flow_id: 38, src: 1, dst: 3, packet_size: 95, hop_cnt: 3
+2025-10-24T23:09:54.244352Z  INFO host:   id: 43, flow_id: 78, src: 2, dst: 0, packet_size: 94, hop_cnt: 3
+2025-10-24T23:09:54.244353Z  INFO host:   id: 44, flow_id: 32, src: 2, dst: 3, packet_size: 71, hop_cnt: 1
+2025-10-24T23:09:54.244354Z  INFO host:   id: 45, flow_id: 23, src: 3, dst: 2, packet_size: 46, hop_cnt: 1
+2025-10-24T23:09:54.244355Z  INFO host:   id: 46, flow_id: 68, src: 2, dst: 0, packet_size: 50, hop_cnt: 3
+2025-10-24T23:09:54.244356Z  INFO host:   id: 47, flow_id: 44, src: 2, dst: 3, packet_size: 39, hop_cnt: 1
+2025-10-24T23:09:54.244357Z  INFO host:   id: 48, flow_id: 12, src: 3, dst: 1, packet_size: 37, hop_cnt: 3
+2025-10-24T23:09:54.244358Z  INFO host:   id: 49, flow_id: 28, src: 2, dst: 1, packet_size: 88, hop_cnt: 1
+2025-10-24T23:09:54.244359Z  INFO host:   id: 50, flow_id: 9, src: 3, dst: 2, packet_size: 90, hop_cnt: 1
+2025-10-24T23:09:54.244360Z  INFO host:   id: 51, flow_id: 18, src: 2, dst: 0, packet_size: 56, hop_cnt: 3
+2025-10-24T23:09:54.244361Z  INFO host:   id: 52, flow_id: 59, src: 2, dst: 0, packet_size: 72, hop_cnt: 3
+2025-10-24T23:09:54.244362Z  INFO host:   id: 53, flow_id: 42, src: 1, dst: 3, packet_size: 60, hop_cnt: 3
+2025-10-24T23:09:54.244363Z  INFO host:   id: 54, flow_id: 35, src: 2, dst: 1, packet_size: 48, hop_cnt: 1
+2025-10-24T23:09:54.244364Z  INFO host:   id: 55, flow_id: 79, src: 0, dst: 2, packet_size: 41, hop_cnt: 3
+2025-10-24T23:09:54.244365Z  INFO host:   id: 56, flow_id: 54, src: 1, dst: 3, packet_size: 94, hop_cnt: 3
+2025-10-24T23:09:54.244366Z  INFO host:   id: 57, flow_id: 72, src: 2, dst: 0, packet_size: 23, hop_cnt: 3
+2025-10-24T23:09:54.247058Z  INFO host: Updated last_seq in DB metadata to 101
+2025-10-24T23:09:54.247626Z  INFO host: New CLogs:
+2025-10-24T23:09:54.247630Z  INFO host:   id: 1, flow_id: 46, src: 1, dst: 2, packet_size: 55, hop_cnt: 1
+2025-10-24T23:09:54.247632Z  INFO host:   id: 2, flow_id: 71, src: 3, dst: 0, packet_size: 53, hop_cnt: 6
+2025-10-24T23:09:54.247633Z  INFO host:   id: 3, flow_id: 17, src: 3, dst: 2, packet_size: 14, hop_cnt: 1
+2025-10-24T23:09:54.247634Z  INFO host:   id: 4, flow_id: 15, src: 0, dst: 2, packet_size: 69, hop_cnt: 3
+2025-10-24T23:09:54.247635Z  INFO host:   id: 5, flow_id: 60, src: 1, dst: 2, packet_size: 29, hop_cnt: 1
+2025-10-24T23:09:54.247637Z  INFO host:   id: 6, flow_id: 65, src: 2, dst: 3, packet_size: 51, hop_cnt: 1
+2025-10-24T23:09:54.247638Z  INFO host:   id: 7, flow_id: 10, src: 2, dst: 0, packet_size: 66, hop_cnt: 3
+2025-10-24T23:09:54.247639Z  INFO host:   id: 8, flow_id: 51, src: 2, dst: 0, packet_size: 63, hop_cnt: 3
+2025-10-24T23:09:54.247640Z  INFO host:   id: 9, flow_id: 19, src: 1, dst: 0, packet_size: 53, hop_cnt: 1
+2025-10-24T23:09:54.247641Z  INFO host:   id: 10, flow_id: 43, src: 0, dst: 2, packet_size: 85, hop_cnt: 3
+2025-10-24T23:09:54.247642Z  INFO host:   id: 11, flow_id: 53, src: 0, dst: 3, packet_size: 60, hop_cnt: 6
+2025-10-24T23:09:54.247643Z  INFO host:   id: 12, flow_id: 3, src: 0, dst: 1, packet_size: 1, hop_cnt: 1
+2025-10-24T23:09:54.247644Z  INFO host:   id: 13, flow_id: 66, src: 3, dst: 0, packet_size: 55, hop_cnt: 6
+2025-10-24T23:09:54.247645Z  INFO host:   id: 14, flow_id: 67, src: 0, dst: 3, packet_size: 40, hop_cnt: 6
+2025-10-24T23:09:54.247646Z  INFO host:   id: 15, flow_id: 8, src: 1, dst: 0, packet_size: 14, hop_cnt: 1
+2025-10-24T23:09:54.247647Z  INFO host:   id: 16, flow_id: 14, src: 1, dst: 2, packet_size: 93, hop_cnt: 1
+2025-10-24T23:09:54.247648Z  INFO host:   id: 17, flow_id: 27, src: 1, dst: 3, packet_size: 26, hop_cnt: 3
+2025-10-24T23:09:54.247649Z  INFO host:   id: 18, flow_id: 22, src: 1, dst: 3, packet_size: 54, hop_cnt: 3
+2025-10-24T23:09:54.247650Z  INFO host:   id: 19, flow_id: 36, src: 3, dst: 2, packet_size: 92, hop_cnt: 1
+2025-10-24T23:09:54.247651Z  INFO host:   id: 20, flow_id: 7, src: 0, dst: 3, packet_size: 15, hop_cnt: 6
+2025-10-24T23:09:54.247652Z  INFO host:   id: 21, flow_id: 11, src: 1, dst: 0, packet_size: 37, hop_cnt: 1
+2025-10-24T23:09:54.247653Z  INFO host:   id: 22, flow_id: 33, src: 1, dst: 3, packet_size: 59, hop_cnt: 3
+2025-10-24T23:09:54.247655Z  INFO host:   id: 23, flow_id: 45, src: 3, dst: 0, packet_size: 94, hop_cnt: 6
+2025-10-24T23:09:54.247656Z  INFO host:   id: 24, flow_id: 64, src: 0, dst: 1, packet_size: 26, hop_cnt: 1
+2025-10-24T23:09:54.247657Z  INFO host:   id: 25, flow_id: 37, src: 0, dst: 3, packet_size: 95, hop_cnt: 6
+2025-10-24T23:09:54.247658Z  INFO host:   id: 26, flow_id: 29, src: 3, dst: 1, packet_size: 19, hop_cnt: 3
+2025-10-24T23:09:54.247659Z  INFO host:   id: 27, flow_id: 52, src: 3, dst: 1, packet_size: 76, hop_cnt: 3
+2025-10-24T23:09:54.247660Z  INFO host:   id: 28, flow_id: 21, src: 0, dst: 2, packet_size: 11, hop_cnt: 3
+2025-10-24T23:09:54.247661Z  INFO host:   id: 29, flow_id: 40, src: 3, dst: 0, packet_size: 11, hop_cnt: 6
+2025-10-24T23:09:54.247662Z  INFO host:   id: 30, flow_id: 58, src: 0, dst: 1, packet_size: 39, hop_cnt: 1
+2025-10-24T23:09:54.247663Z  INFO host:   id: 31, flow_id: 6, src: 2, dst: 0, packet_size: 30, hop_cnt: 3
+2025-10-24T23:09:54.247664Z  INFO host:   id: 32, flow_id: 55, src: 2, dst: 3, packet_size: 66, hop_cnt: 1
+2025-10-24T23:09:54.247665Z  INFO host:   id: 33, flow_id: 73, src: 1, dst: 2, packet_size: 30, hop_cnt: 1
+2025-10-24T23:09:54.247666Z  INFO host:   id: 34, flow_id: 2, src: 3, dst: 1, packet_size: 46, hop_cnt: 3
+2025-10-24T23:09:54.247667Z  INFO host:   id: 35, flow_id: 76, src: 1, dst: 3, packet_size: 97, hop_cnt: 3
+2025-10-24T23:09:54.247668Z  INFO host:   id: 36, flow_id: 56, src: 3, dst: 0, packet_size: 89, hop_cnt: 6
+2025-10-24T23:09:54.247669Z  INFO host:   id: 37, flow_id: 41, src: 2, dst: 1, packet_size: 86, hop_cnt: 1
+2025-10-24T23:09:54.247670Z  INFO host:   id: 38, flow_id: 24, src: 2, dst: 0, packet_size: 81, hop_cnt: 3
+2025-10-24T23:09:54.247671Z  INFO host:   id: 39, flow_id: 63, src: 1, dst: 3, packet_size: 58, hop_cnt: 3
+2025-10-24T23:09:54.247672Z  INFO host:   id: 40, flow_id: 31, src: 0, dst: 2, packet_size: 83, hop_cnt: 3
+2025-10-24T23:09:54.247673Z  INFO host:   id: 41, flow_id: 25, src: 0, dst: 1, packet_size: 22, hop_cnt: 1
+2025-10-24T23:09:54.247674Z  INFO host:   id: 42, flow_id: 38, src: 1, dst: 3, packet_size: 95, hop_cnt: 3
+2025-10-24T23:09:54.247675Z  INFO host:   id: 43, flow_id: 78, src: 2, dst: 0, packet_size: 94, hop_cnt: 3
+2025-10-24T23:09:54.247677Z  INFO host:   id: 44, flow_id: 32, src: 2, dst: 3, packet_size: 71, hop_cnt: 1
+2025-10-24T23:09:54.247678Z  INFO host:   id: 45, flow_id: 23, src: 3, dst: 2, packet_size: 46, hop_cnt: 1
+2025-10-24T23:09:54.247679Z  INFO host:   id: 46, flow_id: 68, src: 2, dst: 0, packet_size: 50, hop_cnt: 3
+2025-10-24T23:09:54.247680Z  INFO host:   id: 47, flow_id: 44, src: 2, dst: 3, packet_size: 39, hop_cnt: 1
+2025-10-24T23:09:54.247681Z  INFO host:   id: 48, flow_id: 12, src: 3, dst: 1, packet_size: 37, hop_cnt: 3
+2025-10-24T23:09:54.247682Z  INFO host:   id: 49, flow_id: 28, src: 2, dst: 1, packet_size: 88, hop_cnt: 1
+2025-10-24T23:09:54.247683Z  INFO host:   id: 50, flow_id: 9, src: 3, dst: 2, packet_size: 90, hop_cnt: 1
+2025-10-24T23:09:54.247684Z  INFO host:   id: 51, flow_id: 18, src: 2, dst: 0, packet_size: 56, hop_cnt: 3
+2025-10-24T23:09:54.247685Z  INFO host:   id: 52, flow_id: 59, src: 2, dst: 0, packet_size: 72, hop_cnt: 3
+2025-10-24T23:09:54.247686Z  INFO host:   id: 53, flow_id: 42, src: 1, dst: 3, packet_size: 60, hop_cnt: 3
+2025-10-24T23:09:54.247687Z  INFO host:   id: 54, flow_id: 35, src: 2, dst: 1, packet_size: 48, hop_cnt: 1
+2025-10-24T23:09:54.247688Z  INFO host:   id: 55, flow_id: 79, src: 0, dst: 2, packet_size: 41, hop_cnt: 3
+2025-10-24T23:09:54.247689Z  INFO host:   id: 56, flow_id: 54, src: 1, dst: 3, packet_size: 94, hop_cnt: 3
+2025-10-24T23:09:54.247690Z  INFO host:   id: 57, flow_id: 72, src: 2, dst: 0, packet_size: 23, hop_cnt: 3
+2025-10-24T23:12:01.883243Z  INFO host: Receipt wrote to ./receipts/aggregation_receipt.bin
+2025-10-24T23:12:01.883254Z  INFO host: Journal size: 5668 bytes
+2025-10-24T23:12:01.883255Z  INFO host: Seal size: 256 bytes
+2025-10-24T23:12:01.883256Z  INFO host: Execution took 127635 ms
+2025-10-24T23:13:20.681006Z  INFO core::postgres: DB connection URL: host=localhost user=vns password=vns dbname=vns
+2025-10-24T23:13:20.684061Z  INFO host: Starting aggregation prover
+2025-10-24T23:13:20.684208Z  INFO host: Loaded previous Merkle tree with 57 leaves
+2025-10-24T23:13:20.686244Z  INFO host: Processing new logs from seq > 101
+2025-10-24T23:13:20.687263Z  INFO host: Fetched 17 logs from table 0
+2025-10-24T23:13:20.688274Z  INFO host: Fetched 34 logs from table 1
+2025-10-24T23:13:20.688929Z  INFO host: Fetched 34 logs from table 2
+2025-10-24T23:13:20.689414Z  INFO host: Fetched 16 logs from table 3
+2025-10-24T23:13:20.689602Z  INFO host: Total logs fetched from all tables: 101
+2025-10-24T23:13:20.690780Z  INFO host: Old CLogs:
+2025-10-24T23:13:20.690784Z  INFO host:   id: 1, flow_id: 46, src: 1, dst: 2, packet_size: 55, hop_cnt: 1
+2025-10-24T23:13:20.690792Z  INFO host:   id: 2, flow_id: 71, src: 3, dst: 0, packet_size: 53, hop_cnt: 6
+2025-10-24T23:13:20.690793Z  INFO host:   id: 3, flow_id: 17, src: 3, dst: 2, packet_size: 14, hop_cnt: 1
+2025-10-24T23:13:20.690794Z  INFO host:   id: 4, flow_id: 15, src: 0, dst: 2, packet_size: 69, hop_cnt: 3
+2025-10-24T23:13:20.690795Z  INFO host:   id: 5, flow_id: 60, src: 1, dst: 2, packet_size: 29, hop_cnt: 1
+2025-10-24T23:13:20.690795Z  INFO host:   id: 6, flow_id: 65, src: 2, dst: 3, packet_size: 51, hop_cnt: 1
+2025-10-24T23:13:20.690796Z  INFO host:   id: 7, flow_id: 10, src: 2, dst: 0, packet_size: 66, hop_cnt: 3
+2025-10-24T23:13:20.690797Z  INFO host:   id: 8, flow_id: 51, src: 2, dst: 0, packet_size: 63, hop_cnt: 3
+2025-10-24T23:13:20.690798Z  INFO host:   id: 9, flow_id: 19, src: 1, dst: 0, packet_size: 53, hop_cnt: 1
+2025-10-24T23:13:20.690798Z  INFO host:   id: 10, flow_id: 43, src: 0, dst: 2, packet_size: 85, hop_cnt: 3
+2025-10-24T23:13:20.690799Z  INFO host:   id: 11, flow_id: 53, src: 0, dst: 3, packet_size: 60, hop_cnt: 6
+2025-10-24T23:13:20.690800Z  INFO host:   id: 12, flow_id: 3, src: 0, dst: 1, packet_size: 1, hop_cnt: 1
+2025-10-24T23:13:20.690801Z  INFO host:   id: 13, flow_id: 66, src: 3, dst: 0, packet_size: 55, hop_cnt: 6
+2025-10-24T23:13:20.690801Z  INFO host:   id: 14, flow_id: 67, src: 0, dst: 3, packet_size: 40, hop_cnt: 6
+2025-10-24T23:13:20.690802Z  INFO host:   id: 15, flow_id: 8, src: 1, dst: 0, packet_size: 14, hop_cnt: 1
+2025-10-24T23:13:20.690803Z  INFO host:   id: 16, flow_id: 14, src: 1, dst: 2, packet_size: 93, hop_cnt: 1
+2025-10-24T23:13:20.690803Z  INFO host:   id: 17, flow_id: 27, src: 1, dst: 3, packet_size: 26, hop_cnt: 3
+2025-10-24T23:13:20.690804Z  INFO host:   id: 18, flow_id: 22, src: 1, dst: 3, packet_size: 54, hop_cnt: 3
+2025-10-24T23:13:20.690805Z  INFO host:   id: 19, flow_id: 36, src: 3, dst: 2, packet_size: 92, hop_cnt: 1
+2025-10-24T23:13:20.690805Z  INFO host:   id: 20, flow_id: 7, src: 0, dst: 3, packet_size: 15, hop_cnt: 6
+2025-10-24T23:13:20.690806Z  INFO host:   id: 21, flow_id: 11, src: 1, dst: 0, packet_size: 37, hop_cnt: 1
+2025-10-24T23:13:20.690807Z  INFO host:   id: 22, flow_id: 33, src: 1, dst: 3, packet_size: 59, hop_cnt: 3
+2025-10-24T23:13:20.690807Z  INFO host:   id: 23, flow_id: 45, src: 3, dst: 0, packet_size: 94, hop_cnt: 6
+2025-10-24T23:13:20.690808Z  INFO host:   id: 24, flow_id: 64, src: 0, dst: 1, packet_size: 26, hop_cnt: 1
+2025-10-24T23:13:20.690809Z  INFO host:   id: 25, flow_id: 37, src: 0, dst: 3, packet_size: 95, hop_cnt: 6
+2025-10-24T23:13:20.690809Z  INFO host:   id: 26, flow_id: 29, src: 3, dst: 1, packet_size: 19, hop_cnt: 3
+2025-10-24T23:13:20.690810Z  INFO host:   id: 27, flow_id: 52, src: 3, dst: 1, packet_size: 76, hop_cnt: 3
+2025-10-24T23:13:20.690811Z  INFO host:   id: 28, flow_id: 21, src: 0, dst: 2, packet_size: 11, hop_cnt: 3
+2025-10-24T23:13:20.690811Z  INFO host:   id: 29, flow_id: 40, src: 3, dst: 0, packet_size: 11, hop_cnt: 6
+2025-10-24T23:13:20.690812Z  INFO host:   id: 30, flow_id: 58, src: 0, dst: 1, packet_size: 39, hop_cnt: 1
+2025-10-24T23:13:20.690813Z  INFO host:   id: 31, flow_id: 6, src: 2, dst: 0, packet_size: 30, hop_cnt: 3
+2025-10-24T23:13:20.690813Z  INFO host:   id: 32, flow_id: 55, src: 2, dst: 3, packet_size: 66, hop_cnt: 1
+2025-10-24T23:13:20.690814Z  INFO host:   id: 33, flow_id: 73, src: 1, dst: 2, packet_size: 30, hop_cnt: 1
+2025-10-24T23:13:20.690815Z  INFO host:   id: 34, flow_id: 2, src: 3, dst: 1, packet_size: 46, hop_cnt: 3
+2025-10-24T23:13:20.690815Z  INFO host:   id: 35, flow_id: 76, src: 1, dst: 3, packet_size: 97, hop_cnt: 3
+2025-10-24T23:13:20.690816Z  INFO host:   id: 36, flow_id: 56, src: 3, dst: 0, packet_size: 89, hop_cnt: 6
+2025-10-24T23:13:20.690817Z  INFO host:   id: 37, flow_id: 41, src: 2, dst: 1, packet_size: 86, hop_cnt: 1
+2025-10-24T23:13:20.690817Z  INFO host:   id: 38, flow_id: 24, src: 2, dst: 0, packet_size: 81, hop_cnt: 3
+2025-10-24T23:13:20.690818Z  INFO host:   id: 39, flow_id: 63, src: 1, dst: 3, packet_size: 58, hop_cnt: 3
+2025-10-24T23:13:20.690819Z  INFO host:   id: 40, flow_id: 31, src: 0, dst: 2, packet_size: 83, hop_cnt: 3
+2025-10-24T23:13:20.690820Z  INFO host:   id: 41, flow_id: 25, src: 0, dst: 1, packet_size: 22, hop_cnt: 1
+2025-10-24T23:13:20.690820Z  INFO host:   id: 42, flow_id: 38, src: 1, dst: 3, packet_size: 95, hop_cnt: 3
+2025-10-24T23:13:20.690821Z  INFO host:   id: 43, flow_id: 78, src: 2, dst: 0, packet_size: 94, hop_cnt: 3
+2025-10-24T23:13:20.690822Z  INFO host:   id: 44, flow_id: 32, src: 2, dst: 3, packet_size: 71, hop_cnt: 1
+2025-10-24T23:13:20.690822Z  INFO host:   id: 45, flow_id: 23, src: 3, dst: 2, packet_size: 46, hop_cnt: 1
+2025-10-24T23:13:20.690823Z  INFO host:   id: 46, flow_id: 68, src: 2, dst: 0, packet_size: 50, hop_cnt: 3
+2025-10-24T23:13:20.690824Z  INFO host:   id: 47, flow_id: 44, src: 2, dst: 3, packet_size: 39, hop_cnt: 1
+2025-10-24T23:13:20.690824Z  INFO host:   id: 48, flow_id: 12, src: 3, dst: 1, packet_size: 37, hop_cnt: 3
+2025-10-24T23:13:20.690825Z  INFO host:   id: 49, flow_id: 28, src: 2, dst: 1, packet_size: 88, hop_cnt: 1
+2025-10-24T23:13:20.690826Z  INFO host:   id: 50, flow_id: 9, src: 3, dst: 2, packet_size: 90, hop_cnt: 1
+2025-10-24T23:13:20.690826Z  INFO host:   id: 51, flow_id: 18, src: 2, dst: 0, packet_size: 56, hop_cnt: 3
+2025-10-24T23:13:20.690827Z  INFO host:   id: 52, flow_id: 59, src: 2, dst: 0, packet_size: 72, hop_cnt: 3
+2025-10-24T23:13:20.690828Z  INFO host:   id: 53, flow_id: 42, src: 1, dst: 3, packet_size: 60, hop_cnt: 3
+2025-10-24T23:13:20.690828Z  INFO host:   id: 54, flow_id: 35, src: 2, dst: 1, packet_size: 48, hop_cnt: 1
+2025-10-24T23:13:20.690829Z  INFO host:   id: 55, flow_id: 79, src: 0, dst: 2, packet_size: 41, hop_cnt: 3
+2025-10-24T23:13:20.690830Z  INFO host:   id: 56, flow_id: 54, src: 1, dst: 3, packet_size: 94, hop_cnt: 3
+2025-10-24T23:13:20.690830Z  INFO host:   id: 57, flow_id: 72, src: 2, dst: 0, packet_size: 23, hop_cnt: 3
+2025-10-24T23:13:20.775844Z  INFO host: Update CLogs:
+2025-10-24T23:13:20.775850Z  INFO host:   id: 22, flow_id: 33, src: 1, dst: 3, packet_size: 59, hop_cnt: 5
+2025-10-24T23:13:20.775852Z  INFO host:   id: 33, flow_id: 73, src: 1, dst: 2, packet_size: 30, hop_cnt: 3
+2025-10-24T23:13:20.775853Z  INFO host:   id: 13, flow_id: 66, src: 3, dst: 0, packet_size: 55, hop_cnt: 10
+2025-10-24T23:13:20.775855Z  INFO host:   id: 51, flow_id: 18, src: 2, dst: 0, packet_size: 56, hop_cnt: 2
+2025-10-24T23:13:20.775856Z  INFO host:   id: 18, flow_id: 22, src: 1, dst: 3, packet_size: 54, hop_cnt: 5
+2025-10-24T23:13:20.775857Z  INFO host:   id: 49, flow_id: 28, src: 2, dst: 1, packet_size: 88, hop_cnt: 4
+2025-10-24T23:13:20.775859Z  INFO host:   id: 32, flow_id: 55, src: 2, dst: 3, packet_size: 66, hop_cnt: 2
+2025-10-24T23:13:20.775860Z  INFO host:   id: 28, flow_id: 21, src: 0, dst: 2, packet_size: 11, hop_cnt: 3
+2025-10-24T23:13:20.775861Z  INFO host:   id: 48, flow_id: 12, src: 3, dst: 1, packet_size: 37, hop_cnt: 3
+2025-10-24T23:13:20.775862Z  INFO host:   id: 25, flow_id: 37, src: 0, dst: 3, packet_size: 95, hop_cnt: 12
+2025-10-24T23:13:20.775863Z  INFO host:   id: 14, flow_id: 67, src: 0, dst: 3, packet_size: 40, hop_cnt: 10
+2025-10-24T23:13:20.775864Z  INFO host:   id: 1, flow_id: 46, src: 1, dst: 2, packet_size: 55, hop_cnt: 2
+2025-10-24T23:13:20.775865Z  INFO host:   id: 2, flow_id: 71, src: 3, dst: 0, packet_size: 53, hop_cnt: 8
+2025-10-24T23:13:20.775866Z  INFO host:   id: 6, flow_id: 65, src: 2, dst: 3, packet_size: 51, hop_cnt: 4
+2025-10-24T23:13:20.775867Z  INFO host:   id: 3, flow_id: 17, src: 3, dst: 2, packet_size: 14, hop_cnt: 2
+2025-10-24T23:13:20.775869Z  INFO host:   id: 46, flow_id: 68, src: 2, dst: 0, packet_size: 50, hop_cnt: 8
+2025-10-24T23:13:20.775870Z  INFO host:   id: 23, flow_id: 45, src: 3, dst: 0, packet_size: 94, hop_cnt: 7
+2025-10-24T23:13:20.775871Z  INFO host:   id: 50, flow_id: 9, src: 3, dst: 2, packet_size: 90, hop_cnt: 2
+2025-10-24T23:13:20.775872Z  INFO host:   id: 10, flow_id: 43, src: 0, dst: 2, packet_size: 85, hop_cnt: 5
+2025-10-24T23:13:20.775873Z  INFO host:   id: 7, flow_id: 10, src: 2, dst: 0, packet_size: 66, hop_cnt: 9
+2025-10-24T23:13:20.775874Z  INFO host:   id: 40, flow_id: 31, src: 0, dst: 2, packet_size: 83, hop_cnt: 5
+2025-10-24T23:13:20.775875Z  INFO host:   id: 53, flow_id: 42, src: 1, dst: 3, packet_size: 60, hop_cnt: 7
+2025-10-24T23:13:20.775876Z  INFO host:   id: 27, flow_id: 52, src: 3, dst: 1, packet_size: 76, hop_cnt: 2
+2025-10-24T23:13:20.775877Z  INFO host:   id: 43, flow_id: 78, src: 2, dst: 0, packet_size: 94, hop_cnt: 4
+2025-10-24T23:13:20.775879Z  INFO host:   id: 36, flow_id: 56, src: 3, dst: 0, packet_size: 89, hop_cnt: 7
+2025-10-24T23:13:20.775880Z  INFO host:   id: 26, flow_id: 29, src: 3, dst: 1, packet_size: 19, hop_cnt: 6
+2025-10-24T23:13:20.775881Z  INFO host:   id: 52, flow_id: 59, src: 2, dst: 0, packet_size: 72, hop_cnt: 4
+2025-10-24T23:13:20.775882Z  INFO host:   id: 42, flow_id: 38, src: 1, dst: 3, packet_size: 95, hop_cnt: 6
+2025-10-24T23:13:20.775883Z  INFO host:   id: 15, flow_id: 8, src: 1, dst: 0, packet_size: 14, hop_cnt: 3
+2025-10-24T23:13:20.775884Z  INFO host:   id: 44, flow_id: 32, src: 2, dst: 3, packet_size: 71, hop_cnt: 5
+2025-10-24T23:13:20.775885Z  INFO host:   id: 17, flow_id: 27, src: 1, dst: 3, packet_size: 26, hop_cnt: 5
+2025-10-24T23:13:20.775886Z  INFO host:   id: 31, flow_id: 6, src: 2, dst: 0, packet_size: 30, hop_cnt: 8
+2025-10-24T23:13:20.775887Z  INFO host:   id: 16, flow_id: 14, src: 1, dst: 2, packet_size: 93, hop_cnt: 2
+2025-10-24T23:13:20.775888Z  INFO host:   id: 57, flow_id: 72, src: 2, dst: 0, packet_size: 23, hop_cnt: 7
+2025-10-24T23:13:20.775890Z  INFO host:   id: 11, flow_id: 53, src: 0, dst: 3, packet_size: 60, hop_cnt: 4
+2025-10-24T23:13:20.775902Z  INFO host:   id: 9, flow_id: 19, src: 1, dst: 0, packet_size: 53, hop_cnt: 2
+2025-10-24T23:13:20.775903Z  INFO host:   id: 29, flow_id: 40, src: 3, dst: 0, packet_size: 11, hop_cnt: 7
+2025-10-24T23:13:20.775904Z  INFO host:   id: 55, flow_id: 79, src: 0, dst: 2, packet_size: 41, hop_cnt: 2
+2025-10-24T23:13:20.775905Z  INFO host:   id: 56, flow_id: 54, src: 1, dst: 3, packet_size: 94, hop_cnt: 3
+2025-10-24T23:13:20.775906Z  INFO host:   id: 39, flow_id: 63, src: 1, dst: 3, packet_size: 58, hop_cnt: 3
+2025-10-24T23:13:20.775907Z  INFO host:   id: 54, flow_id: 35, src: 2, dst: 1, packet_size: 48, hop_cnt: 2
+2025-10-24T23:13:20.775908Z  INFO host: Insert CLogs:
+2025-10-24T23:13:20.778228Z  INFO host: Updated last_seq in DB metadata to 204
+2025-10-24T23:13:20.778514Z  INFO host: New CLogs:
+2025-10-24T23:13:20.778519Z  INFO host:   id: 4, flow_id: 15, src: 0, dst: 2, packet_size: 69, hop_cnt: 3
+2025-10-24T23:13:20.778520Z  INFO host:   id: 5, flow_id: 60, src: 1, dst: 2, packet_size: 29, hop_cnt: 1
+2025-10-24T23:13:20.778522Z  INFO host:   id: 8, flow_id: 51, src: 2, dst: 0, packet_size: 63, hop_cnt: 3
+2025-10-24T23:13:20.778523Z  INFO host:   id: 12, flow_id: 3, src: 0, dst: 1, packet_size: 1, hop_cnt: 1
+2025-10-24T23:13:20.778524Z  INFO host:   id: 19, flow_id: 36, src: 3, dst: 2, packet_size: 92, hop_cnt: 1
+2025-10-24T23:13:20.778525Z  INFO host:   id: 20, flow_id: 7, src: 0, dst: 3, packet_size: 15, hop_cnt: 6
+2025-10-24T23:13:20.778526Z  INFO host:   id: 21, flow_id: 11, src: 1, dst: 0, packet_size: 37, hop_cnt: 1
+2025-10-24T23:13:20.778528Z  INFO host:   id: 24, flow_id: 64, src: 0, dst: 1, packet_size: 26, hop_cnt: 1
+2025-10-24T23:13:20.778529Z  INFO host:   id: 30, flow_id: 58, src: 0, dst: 1, packet_size: 39, hop_cnt: 1
+2025-10-24T23:13:20.778530Z  INFO host:   id: 34, flow_id: 2, src: 3, dst: 1, packet_size: 46, hop_cnt: 3
+2025-10-24T23:13:20.778531Z  INFO host:   id: 35, flow_id: 76, src: 1, dst: 3, packet_size: 97, hop_cnt: 3
+2025-10-24T23:13:20.778532Z  INFO host:   id: 37, flow_id: 41, src: 2, dst: 1, packet_size: 86, hop_cnt: 1
+2025-10-24T23:13:20.778533Z  INFO host:   id: 38, flow_id: 24, src: 2, dst: 0, packet_size: 81, hop_cnt: 3
+2025-10-24T23:13:20.778535Z  INFO host:   id: 41, flow_id: 25, src: 0, dst: 1, packet_size: 22, hop_cnt: 1
+2025-10-24T23:13:20.778536Z  INFO host:   id: 45, flow_id: 23, src: 3, dst: 2, packet_size: 46, hop_cnt: 1
+2025-10-24T23:13:20.778537Z  INFO host:   id: 47, flow_id: 44, src: 2, dst: 3, packet_size: 39, hop_cnt: 1
+2025-10-24T23:13:20.778538Z  INFO host:   id: 22, flow_id: 33, src: 1, dst: 3, packet_size: 59, hop_cnt: 8
+2025-10-24T23:13:20.778539Z  INFO host:   id: 33, flow_id: 73, src: 1, dst: 2, packet_size: 30, hop_cnt: 4
+2025-10-24T23:13:20.778540Z  INFO host:   id: 13, flow_id: 66, src: 3, dst: 0, packet_size: 55, hop_cnt: 16
+2025-10-24T23:13:20.778541Z  INFO host:   id: 51, flow_id: 18, src: 2, dst: 0, packet_size: 56, hop_cnt: 5
+2025-10-24T23:13:20.778542Z  INFO host:   id: 18, flow_id: 22, src: 1, dst: 3, packet_size: 54, hop_cnt: 8
+2025-10-24T23:13:20.778543Z  INFO host:   id: 49, flow_id: 28, src: 2, dst: 1, packet_size: 88, hop_cnt: 5
+2025-10-24T23:13:20.778545Z  INFO host:   id: 32, flow_id: 55, src: 2, dst: 3, packet_size: 66, hop_cnt: 3
+2025-10-24T23:13:20.778546Z  INFO host:   id: 28, flow_id: 21, src: 0, dst: 2, packet_size: 11, hop_cnt: 6
+2025-10-24T23:13:20.778547Z  INFO host:   id: 48, flow_id: 12, src: 3, dst: 1, packet_size: 37, hop_cnt: 6
+2025-10-24T23:13:20.778548Z  INFO host:   id: 25, flow_id: 37, src: 0, dst: 3, packet_size: 95, hop_cnt: 18
+2025-10-24T23:13:20.778549Z  INFO host:   id: 14, flow_id: 67, src: 0, dst: 3, packet_size: 40, hop_cnt: 16
+2025-10-24T23:13:20.778550Z  INFO host:   id: 1, flow_id: 46, src: 1, dst: 2, packet_size: 55, hop_cnt: 3
+2025-10-24T23:13:20.778551Z  INFO host:   id: 2, flow_id: 71, src: 3, dst: 0, packet_size: 53, hop_cnt: 14
+2025-10-24T23:13:20.778552Z  INFO host:   id: 6, flow_id: 65, src: 2, dst: 3, packet_size: 51, hop_cnt: 5
+2025-10-24T23:13:20.778553Z  INFO host:   id: 3, flow_id: 17, src: 3, dst: 2, packet_size: 14, hop_cnt: 3
+2025-10-24T23:13:20.778554Z  INFO host:   id: 46, flow_id: 68, src: 2, dst: 0, packet_size: 50, hop_cnt: 11
+2025-10-24T23:13:20.778555Z  INFO host:   id: 23, flow_id: 45, src: 3, dst: 0, packet_size: 94, hop_cnt: 13
+2025-10-24T23:13:20.778557Z  INFO host:   id: 50, flow_id: 9, src: 3, dst: 2, packet_size: 90, hop_cnt: 3
+2025-10-24T23:13:20.778558Z  INFO host:   id: 10, flow_id: 43, src: 0, dst: 2, packet_size: 85, hop_cnt: 8
+2025-10-24T23:13:20.778559Z  INFO host:   id: 7, flow_id: 10, src: 2, dst: 0, packet_size: 66, hop_cnt: 12
+2025-10-24T23:13:20.778560Z  INFO host:   id: 40, flow_id: 31, src: 0, dst: 2, packet_size: 83, hop_cnt: 8
+2025-10-24T23:13:20.778562Z  INFO host:   id: 53, flow_id: 42, src: 1, dst: 3, packet_size: 60, hop_cnt: 10
+2025-10-24T23:13:20.778563Z  INFO host:   id: 27, flow_id: 52, src: 3, dst: 1, packet_size: 76, hop_cnt: 5
+2025-10-24T23:13:20.778564Z  INFO host:   id: 43, flow_id: 78, src: 2, dst: 0, packet_size: 94, hop_cnt: 7
+2025-10-24T23:13:20.778565Z  INFO host:   id: 36, flow_id: 56, src: 3, dst: 0, packet_size: 89, hop_cnt: 13
+2025-10-24T23:13:20.778566Z  INFO host:   id: 26, flow_id: 29, src: 3, dst: 1, packet_size: 19, hop_cnt: 9
+2025-10-24T23:13:20.778567Z  INFO host:   id: 52, flow_id: 59, src: 2, dst: 0, packet_size: 72, hop_cnt: 7
+2025-10-24T23:13:20.778568Z  INFO host:   id: 42, flow_id: 38, src: 1, dst: 3, packet_size: 95, hop_cnt: 9
+2025-10-24T23:13:20.778569Z  INFO host:   id: 15, flow_id: 8, src: 1, dst: 0, packet_size: 14, hop_cnt: 4
+2025-10-24T23:13:20.778570Z  INFO host:   id: 44, flow_id: 32, src: 2, dst: 3, packet_size: 71, hop_cnt: 6
+2025-10-24T23:13:20.778571Z  INFO host:   id: 17, flow_id: 27, src: 1, dst: 3, packet_size: 26, hop_cnt: 8
+2025-10-24T23:13:20.778573Z  INFO host:   id: 31, flow_id: 6, src: 2, dst: 0, packet_size: 30, hop_cnt: 11
+2025-10-24T23:13:20.778574Z  INFO host:   id: 16, flow_id: 14, src: 1, dst: 2, packet_size: 93, hop_cnt: 3
+2025-10-24T23:13:20.778575Z  INFO host:   id: 57, flow_id: 72, src: 2, dst: 0, packet_size: 23, hop_cnt: 10
+2025-10-24T23:13:20.778576Z  INFO host:   id: 11, flow_id: 53, src: 0, dst: 3, packet_size: 60, hop_cnt: 10
+2025-10-24T23:13:20.778577Z  INFO host:   id: 9, flow_id: 19, src: 1, dst: 0, packet_size: 53, hop_cnt: 3
+2025-10-24T23:13:20.778578Z  INFO host:   id: 29, flow_id: 40, src: 3, dst: 0, packet_size: 11, hop_cnt: 13
+2025-10-24T23:13:20.778580Z  INFO host:   id: 55, flow_id: 79, src: 0, dst: 2, packet_size: 41, hop_cnt: 5
+2025-10-24T23:13:20.778581Z  INFO host:   id: 56, flow_id: 54, src: 1, dst: 3, packet_size: 94, hop_cnt: 6
+2025-10-24T23:13:20.778582Z  INFO host:   id: 39, flow_id: 63, src: 1, dst: 3, packet_size: 58, hop_cnt: 6
+2025-10-24T23:13:20.778583Z  INFO host:   id: 54, flow_id: 35, src: 2, dst: 1, packet_size: 48, hop_cnt: 3
+2025-10-24T23:16:21.254213Z  INFO host: Receipt wrote to ./receipts/aggregation_receipt.bin
+2025-10-24T23:16:21.254228Z  INFO host: Journal size: 5668 bytes
+2025-10-24T23:16:21.254230Z  INFO host: Seal size: 256 bytes
+2025-10-24T23:16:21.254230Z  INFO host: Execution took 180475 ms

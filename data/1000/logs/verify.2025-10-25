@@ -1,0 +1,10 @@
+2025-10-25T00:06:20.478153Z  INFO verify: Verifying receipt file: ./receipts/aggregation_receipt.bin
+2025-10-25T00:06:20.481969Z  INFO verify: Merkle tree root: [82, 225, 177, 176, 193, 216, 38, 58, 59, 137, 245, 127, 167, 102, 206, 120, 215, 186, 158, 94, 56, 186, 224, 134, 111, 67, 46, 217, 60, 32, 125, 77]
+2025-10-25T00:06:20.481974Z  INFO verify: Merkle tree size: 612
+2025-10-25T00:06:20.481975Z  INFO verify: Message: Aggregation successful
+2025-10-25T00:06:20.481976Z  INFO verify: Execution took 3 ms
+2025-10-25T00:35:47.391576Z  INFO verify: Verifying receipt file: ./receipts/aggregation_receipt.bin
+2025-10-25T00:35:47.395459Z  INFO verify: Merkle tree root: [178, 116, 31, 34, 236, 210, 210, 169, 204, 73, 199, 95, 101, 211, 59, 16, 225, 116, 145, 53, 188, 191, 141, 96, 187, 243, 4, 153, 126, 191, 148, 99]
+2025-10-25T00:35:47.395465Z  INFO verify: Merkle tree size: 612
+2025-10-25T00:35:47.395465Z  INFO verify: Message: Aggregation successful
+2025-10-25T00:35:47.395466Z  INFO verify: Execution took 3 ms
