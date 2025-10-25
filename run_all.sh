@@ -7,10 +7,10 @@ mkdir -p exp
 # Example: 4 tables, 1000 records means 4 routers with a total of 1000 records.
 
 NUM_TABLES=4
-#NUM_RECORDS_ARRAY=(50 100 500 1000 2000 3000)
-NUM_RECORDS_ARRAY=(20)
+NUM_RECORDS_ARRAY=(50 100 500 1000 2000 3000)
+#NUM_RECORDS_ARRAY=(20)
 
-RELEASE_MODE=0
+RELEASE_MODE=1
 
 if [ "${RELEASE_MODE}" -eq 1 ]; then
   DEV_MODE=0
@@ -57,4 +57,3 @@ for NUM_RECORDS in "${NUM_RECORDS_ARRAY[@]}"; do
   cp -r receipts exp/${NUM_RECORDS}/receipts
 done
 
-cp outptut.txt exp/output.txt

@@ -1,6 +1,6 @@
 use risc0_zkvm::{guest::env, sha::Digest as RiscDigest};
 
-use core::{util, CLog, QueryJournal, QueryPrivateInput};
+use core::{util, QueryJournal, QueryPrivateInput};
 
 fn main() {
     let input: QueryPrivateInput = env::read();

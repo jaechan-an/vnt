@@ -12,8 +12,10 @@ use tracing_appender::rolling;
 use tracing_subscriber::fmt::layer;
 use tracing_subscriber::prelude::*;
 
-use core::{log, postgres::Postgres, AggregationJournal, CLog, QueryJournal, QueryPrivateInput};
-
+use core::{
+    log, merkle::MerkleTree as CLogMerkleTree, postgres::Postgres, util, AggregationJournal, CLog,
+    QueryJournal, QueryPrivateInput,
+};
 mod db;
 
 #[derive(Parser, Debug)]
@@ -117,6 +119,13 @@ async fn main() -> Result<(), Error> {
     }
 
     assert!(src != dst, "Source and destination must be different");
+
+    let merkle_tree: CLogMerkleTree<CLog>;
+    merkle_tree = util::deserialize_merkle_tree(&aggregation_journal.tree);
+    assert!(
+        merkle_tree.leaves_len() == clogs.len(),
+        "Merkle tree size mismatch"
+    );
 
     info!(
         "Querying from src: {}, dst: {}, total logs: {}",
