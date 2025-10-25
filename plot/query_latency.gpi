@@ -1,0 +1,21 @@
+set terminal pngcairo size 1000,450 enhanced font 'Verdana,24'
+set output 'query_latency.png'
+
+set title ""
+
+set key top left
+
+set xlabel "Number of NetFlow Records"
+set xtics ("50" 1, "100" 2, "500" 3, "1000" 4, "2000" 5)
+
+# Left Y-axis for generation latency (in seconds)
+set ylabel "Generation Latency\n(x10^3 sec)"
+#set ytics (100, 200, 400, 800, 1600) nomirror
+set ytics 1
+set ytics nomirror
+
+#set grid
+
+# Plot: generation latency converted to seconds, verification latency unchanged
+plot 'latency.data' using 1:($3/1000000) with linespoints lt rgb "#ff7f0e" lw 2 pt 2 ps 2 title 'Aggregation Proof', \
+     'latency.data' using 1:($4/1000000) with linespoints lt rgb "#1f77b4" lw 2 pt 9 ps 2title 'Query Proof'
