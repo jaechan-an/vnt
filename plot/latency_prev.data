@@ -1,7 +1,7 @@
-# Idx Records Gen_Latency(ms) Verify_latency(ms) Query_Gen_latency(ms) Query_Verify_latency(ms)
-1     50      87293           3                  87581                 3
-2     100     126314          3                  112202                3
-3     500     487369          3                  391791                3
-4     1000    979384          3                  753202                3
-5     2000    1884717         3                  1456896               3
-6     3000    2815463         3                  2187880               3
+# Idx Records Gen_Latency(ms) Query_Gen_latency(ms)
+1     50      87293           87581                
+2     100     126314          112202               
+3     500     487369          391791               
+4     1000    979384          753202               
+5     2000    1884717         1456896              
+6     3000    2815463         2187880              
