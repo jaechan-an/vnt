@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["core", "host", "methods", "methods/guest", "verify", "simulator", "query_host", "query_methods", "query_methods/guest", "query_verify"]
+members = ["core", "host", "methods", "methods/guest", "verify", "simulator", "query_host", "query_methods", "query_methods/guest", "query_verify", "zk"]
 
 # Common dependencies for the workspace
 [workspace.dependencies]
@@ -18,6 +18,11 @@ risc0-zkvm = "^3.0"
 sha2 = "0.10.9"
 hex = "0.4.3"
 merkle_light = "0.4.0"
+
+ff = { version = "0.13.0", features = ["derive"] }
+nova-snark = { git = "https://github.com/microsoft/Nova.git" }
+generic-array = "1.0.0"
+flate2 = "1.1.5"
 
 # Always optimize; building and running the guest takes much longer without optimization.
 [profile.dev]

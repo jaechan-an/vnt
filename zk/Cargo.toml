@@ -1,0 +1,16 @@
+[package]
+name = "zk"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "zk"
+path = "src/lib.rs"
+
+[dependencies]
+ff = { workspace = true }
+nova-snark = { workspace = true }
+generic-array = { workspace = true }
+merkle-trees = { path = "merkle-trees" }
+neptune = { version = "13.0.0", default-features = false }
+serde = { workspace = true }

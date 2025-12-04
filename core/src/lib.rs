@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, hash::Hasher};
 
 pub mod log;
-pub mod util;
 pub mod merkle;
+pub mod util;
 
 #[cfg(any(feature = "host", feature = "simulator"))]
 pub mod postgres;
@@ -304,4 +304,14 @@ pub struct QueryPrivateInput {
 pub struct QueryJournal {
     pub success: bool,
     pub message: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NovaAggregationJournal<ScalarRepr: AsRef<[u8]>, CompressedSNARK, Clog> {
+    pub pub_prev_root: ScalarRepr,
+    pub pub_cur_root: ScalarRepr,
+    pub pub_hash_chain: ScalarRepr,
+    pub pub_n_steps: ScalarRepr,
+    pub compressed_logs: HashMap<u32, Clog>,
+    pub proof: CompressedSNARK,
 }
