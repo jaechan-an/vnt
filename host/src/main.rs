@@ -102,35 +102,6 @@ async fn main() -> Result<(), Error> {
     info!("Starting aggregation prover");
 
     let receiptdir = Path::new(".").join(&args.receiptdir);
-    /*
-    // Read previous compressed logs. Not sure if we actually need this
-
-    let aggregation_receiptfile = receiptdir.join(&args.receiptfile);
-    type ScalarRepr = <Scalar as PrimeField>::Repr;
-
-    let compressed_logs: HashMap<u32, ZKClog> =
-        if receiptdir.exists() && aggregation_receiptfile.exists() {
-            let aggregation_journal: NovaAggregationJournal<
-                ScalarRepr,
-                CompSNARK,
-                zk::CompressedLog<ScalarRepr>,
-            > = bincode::deserialize(&fs::read(&aggregation_receiptfile).unwrap()).unwrap();
-
-            let clogs: HashMap<u32, ZKClog> = aggregation_journal
-                .compressed_logs
-                .into_iter()
-                .map(|(k, v)| (k, ZKClog::from_repr(&v)))
-                .collect();
-            info!(
-                "Loaded previous compressed logs with {} entries",
-                clogs.len()
-            );
-            clogs
-        } else {
-            info!("No previous compressed logs found, starting fresh");
-            HashMap::new()
-        };
-    */
 
     /*
      * 1. Check if there are new logs to process
@@ -334,7 +305,7 @@ async fn main() -> Result<(), Error> {
     };
     new_raw_logs.extend(iter::repeat_n(EMPTY_LOG, n_pad));
 
-    let (circuits, (pub_prev_root, pub_cur_root, pub_hash_chain, pub_n_steps), compressed_logs) =
+    let (circuits, (pub_prev_root, pub_cur_root, pub_hash_chain, pub_n_steps)) =
         C::new_circuits(&old_compressed_logs, new_raw_logs, BATCHES_PER_STEP);
 
     let t0 = Instant::now();
@@ -387,10 +358,6 @@ async fn main() -> Result<(), Error> {
         pub_cur_root: pub_cur_root.to_repr(),
         pub_hash_chain: pub_hash_chain.to_repr(),
         pub_n_steps: pub_n_steps.to_repr(),
-        compressed_logs: compressed_logs
-            .into_iter()
-            .map(|(k, v)| (k, v.to_repr()))
-            .collect(),
         proof: compressed_snark,
     };
 

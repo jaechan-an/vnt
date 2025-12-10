@@ -399,7 +399,6 @@ impl<
     ) -> (
         Vec<Self>,
         (Scalar, Scalar, Scalar, Scalar),
-        HashMap<K, CompressedLog<Scalar>>,
     ) {
         // Split the new logs into batches
         let (batched_logs, rem) = raw_logs.as_chunks::<BATCH_SIZE>();
@@ -495,7 +494,6 @@ impl<
                 hash_chain,
                 Scalar::from(n_steps as u64),
             ),
-            compressed_logs,
         )
     }
 }
