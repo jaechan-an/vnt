@@ -13,7 +13,7 @@ NUM_RECORDS_ARRAY=(50 100 500 1000 2000 3000)
 RELEASE_MODE=1
 
 if [ "${RELEASE_MODE}" -eq 1 ]; then
-  DEV_MODE=0
+  # DEV_MODE=0
   RELEASE="--release"
 else
   BUILD_MODE=""
@@ -26,7 +26,7 @@ for NUM_RECORDS in "${NUM_RECORDS_ARRAY[@]}"; do
   ./reset_db.sh
 
   rm -rf logs
-  rm -rf receipts
+  rm -rf proofs
   mkdir -p exp/${NUM_RECORDS}
 
   # Run initial inserts to the tables
@@ -34,24 +34,24 @@ for NUM_RECORDS in "${NUM_RECORDS_ARRAY[@]}"; do
 
   sleep 5
 
-  RISC0_DEV_MODE=${DEV_MODE} cargo run ${RELEASE} --bin host -- --tables=${NUM_TABLES}
+  cargo run ${RELEASE} --bin host -- --tables=${NUM_TABLES}
 
-  RISC0_DEV_MODE=${DEV_MODE} cargo run ${RELEASE} --bin verify
+  cargo run ${RELEASE} --bin verify
 
   # Run updates to the tables
   cargo run ${RELEASE} --bin simulator -- --tables=${NUM_TABLES} --records=${NUM_RECORDS} --update-only
 
   sleep 5
 
-  RISC0_DEV_MODE=${DEV_MODE} cargo run ${RELEASE} --bin host -- --tables=${NUM_TABLES}
+  cargo run ${RELEASE} --bin host -- --tables=${NUM_TABLES}
 
-  RISC0_DEV_MODE=${DEV_MODE} cargo run ${RELEASE} --bin verify
+  cargo run ${RELEASE} --bin verify
 
-  sleep 5
+  # sleep 5
 
-  RISC0_DEV_MODE=${DEV_MODE} cargo run ${RELEASE} --bin query_host -- --tables=${NUM_TABLES}
+  # RISC0_DEV_MODE=${DEV_MODE} cargo run ${RELEASE} --bin query_host -- --tables=${NUM_TABLES}
 
-  RISC0_DEV_MODE=${DEV_MODE} cargo run ${RELEASE} --bin query_verify
+  # RISC0_DEV_MODE=${DEV_MODE} cargo run ${RELEASE} --bin query_verify
 
   cp -r logs exp/${NUM_RECORDS}/logs
   cp -r receipts exp/${NUM_RECORDS}/receipts
