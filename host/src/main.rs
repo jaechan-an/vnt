@@ -342,7 +342,7 @@ async fn main() -> Result<(), Error> {
     assert!(res.is_ok());
 
     // Create compressed SNARK
-    let (pk, _vk) = CompSNARK::setup(&pp).unwrap();
+    let (pk, vk) = CompSNARK::setup(&pp).unwrap();
 
     // COMPRESSED PROVE
     let t0 = Instant::now();
@@ -358,6 +358,8 @@ async fn main() -> Result<(), Error> {
         pub_cur_root: pub_cur_root.to_repr(),
         pub_hash_chain: pub_hash_chain.to_repr(),
         pub_n_steps: pub_n_steps.to_repr(),
+        n_steps,
+        verifier_key: vk,
         proof: compressed_snark,
     };
 

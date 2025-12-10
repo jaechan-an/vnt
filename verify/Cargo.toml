@@ -4,14 +4,16 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-methods = { path = "../methods" }
-query_methods = { path = "../query_methods" }
 core = { path = "../core" , features = ["verify"]}
 
 bincode = { workspace = true }
 clap = { workspace = true }
-risc0-zkvm = { workspace = true }
+nova-snark = { workspace = true }
+ff = { workspace = true }
+flate2 = { workspace = true }
 
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 tracing-appender = { workspace = true }
+
+zk = { path = "../zk" }

@@ -307,10 +307,12 @@ pub struct QueryJournal {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct NovaAggregationProof<ScalarRepr: AsRef<[u8]>, CompressedSNARK> {
+pub struct NovaAggregationProof<ScalarRepr: AsRef<[u8]>, CompressedSNARK, VerifierKey> {
     pub pub_prev_root: ScalarRepr,
     pub pub_cur_root: ScalarRepr,
     pub pub_hash_chain: ScalarRepr,
     pub pub_n_steps: ScalarRepr,
+    pub n_steps: usize, // Included for convenience since converting from Scalar to usize is annoying
+    pub verifier_key: VerifierKey,
     pub proof: CompressedSNARK,
 }
