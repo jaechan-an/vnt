@@ -10,7 +10,7 @@ use tracing_appender::rolling;
 use tracing_subscriber::fmt::layer;
 use tracing_subscriber::prelude::*;
 
-use core::{log, postgres::Postgres, util, CLog, Log, NovaAggregationJournal};
+use core::{log, postgres::Postgres, util, CLog, Log, NovaAggregationProof};
 use zk;
 
 use ff::PrimeField;
@@ -382,7 +382,7 @@ async fn main() -> Result<(), Error> {
 
     let compressed_snark = res.unwrap();
 
-    let journal = NovaAggregationJournal {
+    let nova_proof = NovaAggregationProof {
         pub_prev_root: pub_prev_root.to_repr(),
         pub_cur_root: pub_cur_root.to_repr(),
         pub_hash_chain: pub_hash_chain.to_repr(),
@@ -395,17 +395,17 @@ async fn main() -> Result<(), Error> {
     };
 
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-    bincode::serialize_into(&mut encoder, &journal).expect("Failed to serialize journal");
-    let journal_encoded = encoder.finish().unwrap();
-    info!("journal length: {:?} bytes", journal_encoded.len());
+    bincode::serialize_into(&mut encoder, &nova_proof).expect("Failed to serialize proof");
+    let proof_encoded = encoder.finish().unwrap();
+    info!("proof length: {:?} bytes", proof_encoded.len());
 
     // Output compressed snark to file
     std::fs::create_dir_all(&receiptdir).expect("Failed to create log directory");
 
-    let receiptfile = receiptdir.join(&args.receiptfile);
-    fs::write(&receiptfile, journal_encoded).expect("Failed to write journal");
+    let proof_file = receiptdir.join(&args.receiptfile);
+    fs::write(&proof_file, proof_encoded).expect("Failed to write proof");
 
-    info!("Journal written to {}", receiptfile.display());
+    info!("Proof written to {}", proof_file.display());
 
     // Make sure all logs are dropped.
     drop(log_guard);

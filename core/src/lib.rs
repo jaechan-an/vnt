@@ -307,7 +307,7 @@ pub struct QueryJournal {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct NovaAggregationJournal<ScalarRepr: AsRef<[u8]>, CompressedSNARK, Clog> {
+pub struct NovaAggregationProof<ScalarRepr: AsRef<[u8]>, CompressedSNARK, Clog> {
     pub pub_prev_root: ScalarRepr,
     pub pub_cur_root: ScalarRepr,
     pub pub_hash_chain: ScalarRepr,
