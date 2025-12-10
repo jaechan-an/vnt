@@ -274,6 +274,7 @@ async fn main() -> Result<(), Error> {
         packet_size: 0,
         hop_cnt: 0,
     };
+    let mut batch_padding = 0;
     let mut new_raw_logs: Vec<ZKLog> = new_logs
         .iter()
         .enumerate()
@@ -284,6 +285,7 @@ async fn main() -> Result<(), Error> {
                 x => BATCH_SIZE - x,
             };
             info!("node {}: found {} new logs", i, node_logs.len());
+            batch_padding += n_pad;
             node_logs
                 .iter()
                 .map(|log| ZKLog {
@@ -304,6 +306,8 @@ async fn main() -> Result<(), Error> {
         x => (BATCH_SIZE * BATCHES_PER_STEP) - x,
     };
     new_raw_logs.extend(iter::repeat_n(EMPTY_LOG, n_pad));
+
+    info!("added {} logs to pad to batch size, {} to pad to step size", batch_padding, n_pad);
 
     let (circuits, (pub_prev_root, pub_cur_root, pub_hash_chain, pub_n_steps)) =
         C::new_circuits(&old_compressed_logs, new_raw_logs, BATCHES_PER_STEP);
