@@ -14,7 +14,7 @@ use std::fs;
 use std::path::Path;
 use std::time::Instant;
 
-use ff::PrimeField;
+use ff::{Field, PrimeField};
 use nova_snark::{
     nova::{CompressedSNARK, VerifierKey},
     provider::{Bn256EngineKZG, GrumpkinEngine},
@@ -36,18 +36,18 @@ struct Args {
     #[clap(long, default_value = "INFO")]
     logfilter: String,
 
-    /// Receipt directory
-    #[clap(long, default_value = "receipts")]
-    receiptdir: String,
+    /// Proof directory
+    #[clap(long, default_value = "proofs")]
+    proof_dir: String,
 
-    /// Output file path to save the receipt.
+    /// Output file path to save the proof.
     #[clap(
         short = 'r',
         long,
         value_parser,
-        default_value = "aggregation_receipt.bin"
+        default_value = "aggregation_proof.bin"
     )]
-    receiptfile: String,
+    proof_file: String,
 }
 
 fn main() {
@@ -82,8 +82,8 @@ fn main() {
 
     tracing_subscriber::registry().with(logger).init();
 
-    let receiptdir = Path::new(".").join(&args.receiptdir);
-    let proof_file = receiptdir.join(&args.receiptfile);
+    let proof_dir = Path::new(".").join(&args.proof_dir);
+    let proof_file = proof_dir.join(&args.proof_file);
 
     assert!(fs::exists(&proof_file).is_ok());
 
@@ -92,11 +92,8 @@ fn main() {
     // Load and verify the proof file.
     let proof_bytes = fs::read(&proof_file).unwrap();
     let decoder = ZlibDecoder::new(&proof_bytes[..]);
-    let aggregation_proof: NovaAggregationProof<
-        ScalarRepr,
-        CompSNARK,
-        VK,
-    > = bincode::deserialize_from(decoder).unwrap();
+    let aggregation_proof: NovaAggregationProof<ScalarRepr, CompSNARK, VK> =
+        bincode::deserialize_from(decoder).unwrap();
 
     let pub_prev_root = Scalar::from_repr(aggregation_proof.pub_prev_root).unwrap();
     let pub_cur_root = Scalar::from_repr(aggregation_proof.pub_cur_root).unwrap();
@@ -106,10 +103,12 @@ fn main() {
     assert!(Scalar::from(n_steps as u64) == pub_n_steps);
     let vk = aggregation_proof.verifier_key;
 
-    let initial_state = &[pub_prev_root, pub_prev_root, Scalar::zero(), Scalar::zero()];
+    let initial_state = &[pub_prev_root, pub_prev_root, Scalar::ZERO, Scalar::ZERO];
 
     let start = Instant::now();
-    let res = aggregation_proof.proof.verify(&vk, n_steps, initial_state);
+    let res = aggregation_proof
+        .compressed_snark
+        .verify(&vk, n_steps, initial_state);
     assert!(res.is_ok());
     let final_state = res.unwrap();
     match &final_state[..] {
@@ -118,11 +117,13 @@ fn main() {
             assert!(*b == pub_cur_root);
             assert!(*c == pub_hash_chain);
             assert!(*d == pub_n_steps);
-        },
+        }
         _ => error!("Expected 4 elements"),
     }
     let elapsed = start.elapsed().as_millis();
 
+    info!("Merkle tree prev root: {:?}", pub_prev_root);
+    info!("Merkle tree cur root: {:?}", pub_cur_root);
     info!("Execution took {} ms", elapsed);
 
     // Make sure all logs are dropped.

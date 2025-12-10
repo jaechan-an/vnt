@@ -13,7 +13,7 @@ use tracing_subscriber::prelude::*;
 use core::{log, postgres::Postgres, util, CLog, Log, NovaAggregationProof};
 use zk;
 
-use ff::PrimeField;
+use ff::{Field, PrimeField};
 use nova_snark::{
     nova::{CompressedSNARK, PublicParams, RecursiveSNARK},
     provider::{Bn256EngineKZG, GrumpkinEngine},
@@ -37,18 +37,18 @@ struct Args {
     #[clap(long, default_value = "INFO")]
     logfilter: String,
 
-    /// Receipt directory
-    #[clap(long, default_value = "receipts")]
-    receiptdir: String,
+    /// Proof directory
+    #[clap(long, default_value = "proofs")]
+    proof_dir: String,
 
-    /// Output file path to save the receipt.
+    /// Output file path to save the proof.
     #[clap(
         short = 'r',
         long,
         value_parser,
-        default_value = "aggregation_receipt.bin"
+        default_value = "aggregation_proof.bin"
     )]
-    receiptfile: String,
+    proof_file: String,
 
     /// Total count of internal nodes
     #[clap(short = 'n', long, value_parser, default_value_t = 10, value_parser = clap::value_parser!(i32).range(1..=10))]
@@ -101,7 +101,7 @@ async fn main() -> Result<(), Error> {
 
     info!("Starting aggregation prover");
 
-    let receiptdir = Path::new(".").join(&args.receiptdir);
+    let proof_dir = Path::new(".").join(&args.proof_dir);
 
     /*
      * 1. Check if there are new logs to process
@@ -314,7 +314,7 @@ async fn main() -> Result<(), Error> {
     let pp_ms = t0.elapsed().as_millis();
     info!(elapsed_ms = pp_ms, "public_params");
 
-    let initial_state = &[pub_prev_root, pub_prev_root, Scalar::zero(), Scalar::zero()];
+    let initial_state = &[pub_prev_root, pub_prev_root, Scalar::ZERO, Scalar::ZERO];
 
     let n_steps = circuits.len();
     // let n_clogs = old_compressed_logs.len();
@@ -360,7 +360,7 @@ async fn main() -> Result<(), Error> {
         pub_n_steps: pub_n_steps.to_repr(),
         n_steps,
         verifier_key: vk,
-        proof: compressed_snark,
+        compressed_snark,
     };
 
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
@@ -369,9 +369,9 @@ async fn main() -> Result<(), Error> {
     info!("proof length: {:?} bytes", proof_encoded.len());
 
     // Output compressed snark to file
-    std::fs::create_dir_all(&receiptdir).expect("Failed to create log directory");
+    std::fs::create_dir_all(&proof_dir).expect("Failed to create log directory");
 
-    let proof_file = receiptdir.join(&args.receiptfile);
+    let proof_file = proof_dir.join(&args.proof_file);
     fs::write(&proof_file, proof_encoded).expect("Failed to write proof");
 
     info!("Proof written to {}", proof_file.display());

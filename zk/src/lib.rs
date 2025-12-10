@@ -396,10 +396,7 @@ impl<
         old_compressed_logs: &HashMap<K, CompressedLog<Scalar>>,
         raw_logs: Vec<Log<K>>,
         batches_per_step: usize,
-    ) -> (
-        Vec<Self>,
-        (Scalar, Scalar, Scalar, Scalar),
-    ) {
+    ) -> (Vec<Self>, (Scalar, Scalar, Scalar, Scalar)) {
         // Split the new logs into batches
         let (batched_logs, rem) = raw_logs.as_chunks::<BATCH_SIZE>();
         assert_eq!(

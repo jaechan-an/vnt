@@ -314,5 +314,5 @@ pub struct NovaAggregationProof<ScalarRepr: AsRef<[u8]>, CompressedSNARK, Verifi
     pub pub_n_steps: ScalarRepr,
     pub n_steps: usize, // Included for convenience since converting from Scalar to usize is annoying
     pub verifier_key: VerifierKey,
-    pub proof: CompressedSNARK,
+    pub compressed_snark: CompressedSNARK,
 }
