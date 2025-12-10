@@ -10,10 +10,7 @@ use tracing_appender::rolling;
 use tracing_subscriber::fmt::layer;
 use tracing_subscriber::prelude::*;
 
-use core::{
-    log, postgres::Postgres, util, CLog,
-    Log, NovaAggregationJournal,
-};
+use core::{log, postgres::Postgres, util, CLog, Log, NovaAggregationJournal};
 use zk;
 
 use ff::PrimeField;
