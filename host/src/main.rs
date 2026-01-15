@@ -307,7 +307,10 @@ async fn main() -> Result<(), Error> {
     };
     new_raw_logs.extend(iter::repeat_n(EMPTY_LOG, n_pad));
 
-    info!("added {} logs to pad to batch size, {} to pad to step size", batch_padding, n_pad);
+    info!(
+        "added {} logs to pad to batch size, {} to pad to step size",
+        batch_padding, n_pad
+    );
 
     let (circuits, (pub_prev_root, pub_cur_root, pub_hash_chain, pub_n_steps)) =
         C::new_circuits(&old_compressed_logs, new_raw_logs, BATCHES_PER_STEP);
@@ -368,7 +371,10 @@ async fn main() -> Result<(), Error> {
     };
 
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    let t0 = Instant::now();
     bincode::serialize_into(&mut encoder, &nova_proof).expect("Failed to serialize proof");
+    let serialize_ms = t0.elapsed().as_millis();
+    info!(elapsed_ms = serialize_ms, "serialize");
     let proof_encoded = encoder.finish().unwrap();
     info!("proof length: {:?} bytes", proof_encoded.len());
 
