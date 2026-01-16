@@ -450,21 +450,35 @@ impl<
                         let mut idxs: Vec<usize> = Vec::new();
                         let mut siblings: Vec<Vec<Scalar>> = Vec::new();
                         let mut old_clogs: Vec<Option<CompressedLog<Scalar>>> = Vec::new();
+                        let mut scalar_logs: Vec<Scalar> = Vec::new();
 
                         for log in batch.into_iter() {
+                            let scalar_log = log.to_scalar_log();
+                            let packed_log = scalar_log.pack();
+                            scalar_logs.push(packed_log);
                             let old_clog = compressed_logs.get(&log.flow_id).cloned();
-                            let clog = update_clogs(&mut compressed_logs, &log);
-                            let idx = clog.merkle_idx;
-                            let idx_bits = idx_to_bits(HEIGHT, Scalar::from(idx as u64));
-                            new_tree.insert(idx_bits.clone(), &clog.to_leaf());
-                            let siblings_path = new_tree.get_siblings_path(idx_bits);
-                            siblings.push(siblings_path.siblings);
-                            idxs.push(idx);
-                            old_clogs.push(old_clog);
+                            if packed_log != Scalar::ZERO {
+                                let clog = update_clogs(&mut compressed_logs, &log);
+                                let idx = clog.merkle_idx;
+                                let idx_bits = idx_to_bits(HEIGHT, Scalar::from(idx as u64));
+                                new_tree.insert(idx_bits.clone(), &clog.to_leaf());
+                                let siblings_path = new_tree.get_siblings_path(idx_bits);
+                                siblings.push(siblings_path.siblings);
+                                idxs.push(idx);
+                                old_clogs.push(old_clog);
+                            } else {
+                                // Log is empty -- "insert" empty CLog at largest possible index to
+                                // simulate a no-op
+                                let last_idx = (1 << HEIGHT) - 1;
+                                let old_clog = CompressedLog::from_idx_log(last_idx, &scalar_log);
+                                let idx_bits = idx_to_bits(HEIGHT, Scalar::from(last_idx as u64));
+                                let siblings_path = new_tree.get_siblings_path(idx_bits);
+                                siblings.push(siblings_path.siblings);
+                                idxs.push(last_idx);
+                                old_clogs.push(Some(old_clog));
+                            }
                         }
 
-                        let scalar_logs =
-                            batch.iter().map(|log| log.to_scalar_log().pack()).collect();
                         let batch_hash = hash_U2(scalar_logs, &log_hash_constants);
                         hash_chain = hash_U2(vec![hash_chain, batch_hash], &log_hash_constants);
 
