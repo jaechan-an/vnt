@@ -1,8 +1,6 @@
 use clap::Parser;
 use tokio_postgres::Error;
 
-use flate2::{write::ZlibEncoder, Compression};
-
 use std::{collections::HashMap, fs, iter, path::Path, time::Instant};
 
 use tracing::info;
@@ -370,12 +368,10 @@ async fn main() -> Result<(), Error> {
         compressed_snark,
     };
 
-    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
     let t0 = Instant::now();
-    bincode::serialize_into(&mut encoder, &nova_proof).expect("Failed to serialize proof");
+    let proof_encoded = bincode::serialize(&nova_proof).expect("Failed to serialize proof");
     let serialize_ms = t0.elapsed().as_millis();
     info!(elapsed_ms = serialize_ms, "serialize");
-    let proof_encoded = encoder.finish().unwrap();
     info!("proof length: {:?} bytes", proof_encoded.len());
 
     // Output compressed snark to file

@@ -1,7 +1,5 @@
 use clap::Parser;
 
-use flate2::read::ZlibDecoder;
-
 use tracing::{error, info};
 use tracing_appender::rolling;
 use tracing_subscriber::fmt::layer;
@@ -91,9 +89,8 @@ fn main() {
 
     // Load and verify the proof file.
     let proof_bytes = fs::read(&proof_file).unwrap();
-    let decoder = ZlibDecoder::new(&proof_bytes[..]);
     let aggregation_proof: NovaAggregationProof<ScalarRepr, CompSNARK, VK> =
-        bincode::deserialize_from(decoder).unwrap();
+        bincode::deserialize(&proof_bytes[..]).unwrap();
 
     let pub_prev_root = Scalar::from_repr(aggregation_proof.pub_prev_root).unwrap();
     let pub_cur_root = Scalar::from_repr(aggregation_proof.pub_cur_root).unwrap();

@@ -15,7 +15,6 @@ tokio = { workspace = true }
 tokio-postgres = { workspace = true }
 
 nova-snark = { workspace = true }
-flate2 = { workspace = true }
 ff = { workspace = true }
 
 core = { path = "../core" , features = ["host"]}
