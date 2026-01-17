@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::iter::Iterator;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Leaf<F: PrimeField + PrimeFieldBits, A: Arity<F>> {
     pub val: Vec<F>,
     pub _arity: PhantomData<A>,
@@ -37,6 +37,7 @@ where
 pub struct MerkleTree<F: PrimeField + PrimeFieldBits, const N: usize, AL: Arity<F>, AN: Arity<F>> {
     pub root: F,
     pub hash_db: HashMap<String, (F, F)>,
+    pub leaf_hash_db: HashMap<String, Leaf<F, AL>>,
     pub leaf_hash_params: PoseidonConstants<F, AL>,
     pub node_hash_params: PoseidonConstants<F, AN>,
 }
@@ -58,6 +59,7 @@ impl<F: PrimeField + PrimeFieldBits, const N: usize, AL: Arity<F>, AN: Arity<F>>
         Self {
             root: cur_hash,
             hash_db: hash_db,
+            leaf_hash_db: HashMap::new(),
             leaf_hash_params: leaf_hash_params,
             node_hash_params: node_hash_params,
         }
@@ -69,6 +71,7 @@ impl<F: PrimeField + PrimeFieldBits, const N: usize, AL: Arity<F>, AN: Arity<F>>
         empty_leaf_val: Leaf<F, AL>,
     ) -> MerkleTree<F, N, AL, AN> {
         let mut hash_db = HashMap::<String, (F, F)>::new();
+        let mut leaf_hash_db = HashMap::new();
         let leaf_hash_params = Sponge::<F, AL>::api_constants(Strength::Standard);
         let node_hash_params = Sponge::<F, AN>::api_constants(Strength::Standard);
         // Insert all the leaves. We keep a list of any outstanding "left hash" on each level
@@ -76,6 +79,7 @@ impl<F: PrimeField + PrimeFieldBits, const N: usize, AL: Arity<F>, AN: Arity<F>>
         left_hashes.resize(N + 1, None);
         for i in 0..leaves.len() {
             let mut right_hash = Leaf::<F, AL>::hash_leaf(&leaves[i], &leaf_hash_params);
+            leaf_hash_db.insert(format!("{:?}", right_hash.clone()), leaves[i].clone());
             let mut level = 0;
             // Hash upwards until there is no left hash
             while level < N {
@@ -139,6 +143,7 @@ impl<F: PrimeField + PrimeFieldBits, const N: usize, AL: Arity<F>, AN: Arity<F>>
         Self {
             root: left_hashes[N].unwrap_or(empty_hash),
             hash_db: hash_db,
+            leaf_hash_db: leaf_hash_db,
             leaf_hash_params: leaf_hash_params,
             node_hash_params: node_hash_params,
         }
@@ -150,6 +155,7 @@ impl<F: PrimeField + PrimeFieldBits, const N: usize, AL: Arity<F>, AN: Arity<F>>
         // Reverse since path was from root to leaf but I am going leaf to root
         idx_in_bits.reverse();
         let mut cur_hash = Leaf::<F, AL>::hash_leaf(val, &self.leaf_hash_params);
+        self.leaf_hash_db.insert(format!("{:?}", cur_hash.clone()), val.clone());
 
         // Iterate over the bits
         for d in idx_in_bits {
@@ -224,7 +230,7 @@ impl<F: PrimeField + PrimeFieldBits, const N: usize, AL: Arity<F>, AN: Arity<F>>
                     elements.push(format!("<empty> x {}", empty_streak));
                     empty_streak = 0;
                 }
-                elements.push(format!("{:?}", leaf_hash));
+                elements.push(format!("{:?}", self.leaf_hash_db.get(&format!("{:?}",leaf_hash)).unwrap().val));
             }
         }
         if empty_streak != 0 {
