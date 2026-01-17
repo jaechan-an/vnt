@@ -6,6 +6,7 @@ use neptune::{Arity, Strength};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::marker::PhantomData;
+use std::iter::Iterator;
 
 #[derive(Clone, Debug)]
 pub struct Leaf<F: PrimeField + PrimeFieldBits, A: Arity<F>> {
@@ -194,6 +195,42 @@ impl<F: PrimeField + PrimeFieldBits, const N: usize, AL: Arity<F>, AN: Arity<F>>
             leaf_hash_params: self.leaf_hash_params.clone(),
             node_hash_params: self.node_hash_params.clone(),
         }
+    }
+
+    // Returns an iterator over the leaves.
+    // Honestly shocked that this compiles
+    pub fn iter_leaf_hashes<'a>(&'a self) -> Box<dyn Iterator<Item=F> + 'a> {
+        let mut hashes: Box<dyn Iterator<Item=F> + 'a> = Box::new(std::iter::once(self.root));
+        for _ in 0..N {
+            hashes = Box::new(hashes.flat_map(|h| {
+                let (left, right) = self.hash_db.get(&format!("{:?}", h.clone())).unwrap();
+                vec![left.clone(), right.clone()]
+            }));
+        }
+        hashes
+    }
+
+    // Returns a string representation of the leaves. Repeated empty leaves are compressed
+    pub fn leaves_str(&self) -> String {
+        let mut empty_streak = 0;
+        let mut elements: Vec<String> = vec![];
+        let leaf_hash_params = Sponge::<F, AL>::api_constants(Strength::Standard);
+        let empty_hash = Leaf::<F, AL>::hash_leaf(&Leaf::default(), &leaf_hash_params);
+        for leaf_hash in self.iter_leaf_hashes() {
+            if leaf_hash == empty_hash {
+                empty_streak += 1;
+            } else {
+                if empty_streak != 0 {
+                    elements.push(format!("<empty> x {}", empty_streak));
+                    empty_streak = 0;
+                }
+                elements.push(format!("{:?}", leaf_hash));
+            }
+        }
+        if empty_streak != 0 {
+            elements.push(format!("<empty> x {}", empty_streak));
+        }
+        elements.join(", ")
     }
 }
 

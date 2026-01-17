@@ -432,6 +432,8 @@ impl<
         let prev_tree: MerkleTree<Scalar, HEIGHT, U1, U2> =
             MerkleTree::from_vec(merkle_leaves.clone(), vanilla_tree::tree::Leaf::default());
 
+        println!("prev tree: {}", prev_tree.leaves_str());
+
         // Compress the new logs
         let mut compressed_logs = old_compressed_logs.clone();
 
@@ -496,6 +498,9 @@ impl<
                 }
             })
             .collect::<Vec<_>>();
+
+        println!("next tree: {}", new_tree.leaves_str());
+
         let n_steps = circuits.len();
         (
             circuits,
