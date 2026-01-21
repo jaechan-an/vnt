@@ -315,7 +315,7 @@ impl<Scalar: PrimeField + PrimeFieldBits> CompressedLog<Scalar> {
     fn from_idx_log(merkle_idx: usize, log: &Log<Scalar>) -> Self {
         CompressedLog {
             merkle_idx,
-            id: log.id,
+            id: Scalar::from((merkle_idx as u64) + 1),
             flow_id: log.flow_id,
             src: log.src,
             dst: log.dst,
@@ -472,12 +472,20 @@ impl<
                                 // Log is empty -- "insert" empty CLog at largest possible index to
                                 // simulate a no-op
                                 let last_idx = (1 << HEIGHT) - 1;
-                                let old_clog = CompressedLog::from_idx_log(last_idx, &scalar_log);
+                                let zero_clog = CompressedLog {
+                                    merkle_idx: last_idx,
+                                    id: Scalar::ZERO,
+                                    flow_id: Scalar::ZERO,
+                                    src: Scalar::ZERO,
+                                    dst: Scalar::ZERO,
+                                    packet_size: Scalar::ZERO,
+                                    hop_cnt: Scalar::ZERO,
+                                };
                                 let idx_bits = idx_to_bits(HEIGHT, Scalar::from(last_idx as u64));
                                 let siblings_path = new_tree.get_siblings_path(idx_bits);
                                 siblings.push(siblings_path.siblings);
                                 idxs.push(last_idx);
-                                old_clogs.push(Some(old_clog));
+                                old_clogs.push(Some(zero_clog));
                             }
                         }
 

@@ -140,7 +140,7 @@ async fn main() -> Result<(), Error> {
     assert!(new_logs.len() != 0, "No logs found to process");
 
     // Calculate the CLogs to insert or update (without the ids yet)
-    let diff_clogs = aggregate_logs(&new_logs);
+    let (diff_clogs, insertion_order) = aggregate_logs(&new_logs);
 
     // Must get before upsert
     let old_clogs: Vec<CLog> = db::get_clogs(&pg_client).await;
@@ -157,10 +157,15 @@ async fn main() -> Result<(), Error> {
         .filter(|(flow_id, _clog)| old_clogs_map.contains_key(flow_id))
         .map(|(flow_id, clog)| (*flow_id, clog.clone()))
         .collect();
-    let mut insert_clogs: HashMap<i32 /* flow_id */, CLog> = diff_clogs
+    let mut insert_clogs: HashMap<i32 /* flow_id */, CLog> = insertion_order
         .iter()
-        .filter(|(flow_id, _clog)| !old_clogs_map.contains_key(flow_id))
-        .map(|(flow_id, clog)| (*flow_id, clog.clone()))
+        .filter(|flow_id| !old_clogs_map.contains_key(flow_id))
+        .map(|flow_id| (*flow_id, diff_clogs.get(flow_id).unwrap().clone()))
+        .collect();
+    let insertion_order: Vec<i32> = insertion_order
+        .iter()
+        .filter(|flow_id| insert_clogs.contains_key(flow_id))
+        .map(|flow_id| *flow_id)
         .collect();
     // Check if update_clogs + insert_clogs = diff_clogs
     assert!(
@@ -193,8 +198,9 @@ async fn main() -> Result<(), Error> {
         let id = db::update_aggregate_clog(&pg_client, &clog).await;
         clog.id = id;
     }
-    for (_flow_id, clog) in insert_clogs.iter_mut() {
-        let id = db::insert_clog(&pg_client, &clog).await;
+    for flow_id in insertion_order {
+        let clog: &mut CLog = insert_clogs.get_mut(&flow_id).unwrap();
+        let id = db::insert_clog(&pg_client, clog).await;
         clog.id = id;
     }
 
@@ -290,7 +296,7 @@ async fn main() -> Result<(), Error> {
                     id: log.id as u32,
                     flow_id: log.flow_id as u32,
                     src: log.src as u32,
-                    dst: log.flow_id as u32,
+                    dst: log.dst as u32,
                     pred: log.pred as u32,
                     packet_size: log.packet_size as u32,
                     hop_cnt: log.hop_cnt as u32,
@@ -392,12 +398,18 @@ async fn main() -> Result<(), Error> {
  * Aggregates logs from all nodes into a single HashMap where the key is the flow_id.
  * The CLog struct is used to represent the aggregated log.
  */
-fn aggregate_logs(new_logs: &Vec<Vec<Log>>) -> HashMap<i32 /* flow_id */, CLog> {
+fn aggregate_logs(new_logs: &Vec<Vec<Log>>) -> (HashMap<i32 /* flow_id */, CLog>, Vec<i32>) {
     let mut aggregated_map = HashMap::<i32, CLog>::new();
+    let mut insertion_order = Vec::<i32>::new();
 
     for logs in new_logs {
         for log in logs {
             let key = log.flow_id;
+
+            // If we're inserting, update the insertion order
+            if !aggregated_map.contains_key(&key) {
+                insertion_order.push(key);
+            }
 
             // If key exists, modify it; otherwise, insert a new value
             aggregated_map
@@ -407,5 +419,5 @@ fn aggregate_logs(new_logs: &Vec<Vec<Log>>) -> HashMap<i32 /* flow_id */, CLog> 
         }
     }
 
-    aggregated_map
+    (aggregated_map, insertion_order)
 }
