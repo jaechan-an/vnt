@@ -198,7 +198,7 @@ async fn main() -> Result<(), Error> {
         let id = db::update_aggregate_clog(&pg_client, &clog).await;
         clog.id = id;
     }
-    for flow_id in insertion_order {
+    for flow_id in insertion_order.iter() {
         let clog: &mut CLog = insert_clogs.get_mut(&flow_id).unwrap();
         let id = db::insert_clog(&pg_client, clog).await;
         clog.id = id;
@@ -209,8 +209,8 @@ async fn main() -> Result<(), Error> {
         info!("  {}", clog.to_string());
     }
     info!("Insert CLogs:");
-    for clog in insert_clogs.values() {
-        info!("  {}", clog.to_string());
+    for flow_id in insertion_order.iter() {
+        info!("  {}", insert_clogs.get(&flow_id).unwrap().to_string());
     }
 
     // Update the last sequence number in the database metadata

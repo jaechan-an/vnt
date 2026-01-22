@@ -361,6 +361,49 @@ impl<Scalar: PrimeField + PrimeFieldBits> CompressedLog<Scalar> {
     }
 }
 
+// Returns a string representation of the leaves. Repeated empty leaves are compressed
+fn tree_str<Scalar: PrimeField + PrimeFieldBits, const N: usize>(
+    tree: &MerkleTree<Scalar, N, U1, U2>,
+) -> String {
+    let mut empty_streak = 0;
+    let mut elements: Vec<String> = vec![];
+    let empty_hash =
+        vanilla_tree::tree::Leaf::<Scalar, U1>::default().hash_leaf(&tree.leaf_hash_params);
+    for leaf_hash in tree.iter_leaf_hashes() {
+        if leaf_hash == empty_hash {
+            empty_streak += 1;
+        } else {
+            if empty_streak != 0 {
+                elements.push(format!("<empty> x {}", empty_streak));
+                empty_streak = 0;
+            }
+            let bits: Vec<bool> = tree
+                .leaf_hash_db
+                .get(&format!("{:?}", leaf_hash))
+                .unwrap()
+                .val[0]
+                .to_le_bits()
+                .into_iter()
+                .collect();
+            let fields: Vec<u64> = CLOG_OFFSETS
+                .fields()
+                .iter()
+                .map(|(offset, nbits)| {
+                    bits[*offset..*offset + *nbits]
+                        .iter()
+                        .rev()
+                        .fold(0u64, |acc, x| acc * 2 + (*x as u64))
+                })
+                .collect();
+            elements.push(format!("{:?}", fields));
+        }
+    }
+    if empty_streak != 0 {
+        elements.push(format!("<empty> x {}", empty_streak));
+    }
+    elements.join(", ")
+}
+
 #[derive(Clone, Debug)]
 pub struct Batch<
     Scalar: PrimeField + PrimeFieldBits,
@@ -432,7 +475,7 @@ impl<
         let prev_tree: MerkleTree<Scalar, HEIGHT, U1, U2> =
             MerkleTree::from_vec(merkle_leaves.clone(), vanilla_tree::tree::Leaf::default());
 
-        println!("prev tree: {}", prev_tree.leaves_str());
+        println!("prev tree: {}", tree_str(&prev_tree));
 
         // Compress the new logs
         let mut compressed_logs = old_compressed_logs.clone();
@@ -507,7 +550,7 @@ impl<
             })
             .collect::<Vec<_>>();
 
-        println!("next tree: {}", new_tree.leaves_str());
+        println!("next tree: {}", tree_str(&new_tree));
 
         let n_steps = circuits.len();
         (

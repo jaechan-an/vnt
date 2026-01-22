@@ -5,8 +5,8 @@ use neptune::sponge::vanilla::{Sponge, SpongeTrait};
 use neptune::{Arity, Strength};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::marker::PhantomData;
 use std::iter::Iterator;
+use std::marker::PhantomData;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Leaf<F: PrimeField + PrimeFieldBits, A: Arity<F>> {
@@ -155,7 +155,8 @@ impl<F: PrimeField + PrimeFieldBits, const N: usize, AL: Arity<F>, AN: Arity<F>>
         // Reverse since path was from root to leaf but I am going leaf to root
         idx_in_bits.reverse();
         let mut cur_hash = Leaf::<F, AL>::hash_leaf(val, &self.leaf_hash_params);
-        self.leaf_hash_db.insert(format!("{:?}", cur_hash.clone()), val.clone());
+        self.leaf_hash_db
+            .insert(format!("{:?}", cur_hash.clone()), val.clone());
 
         // Iterate over the bits
         for d in idx_in_bits {
@@ -205,8 +206,8 @@ impl<F: PrimeField + PrimeFieldBits, const N: usize, AL: Arity<F>, AN: Arity<F>>
 
     // Returns an iterator over the leaves.
     // Honestly shocked that this compiles
-    pub fn iter_leaf_hashes<'a>(&'a self) -> Box<dyn Iterator<Item=F> + 'a> {
-        let mut hashes: Box<dyn Iterator<Item=F> + 'a> = Box::new(std::iter::once(self.root));
+    pub fn iter_leaf_hashes<'a>(&'a self) -> Box<dyn Iterator<Item = F> + 'a> {
+        let mut hashes: Box<dyn Iterator<Item = F> + 'a> = Box::new(std::iter::once(self.root));
         for _ in 0..N {
             hashes = Box::new(hashes.flat_map(|h| {
                 let (left, right) = self.hash_db.get(&format!("{:?}", h.clone())).unwrap();
@@ -214,29 +215,6 @@ impl<F: PrimeField + PrimeFieldBits, const N: usize, AL: Arity<F>, AN: Arity<F>>
             }));
         }
         hashes
-    }
-
-    // Returns a string representation of the leaves. Repeated empty leaves are compressed
-    pub fn leaves_str(&self) -> String {
-        let mut empty_streak = 0;
-        let mut elements: Vec<String> = vec![];
-        let leaf_hash_params = Sponge::<F, AL>::api_constants(Strength::Standard);
-        let empty_hash = Leaf::<F, AL>::hash_leaf(&Leaf::default(), &leaf_hash_params);
-        for leaf_hash in self.iter_leaf_hashes() {
-            if leaf_hash == empty_hash {
-                empty_streak += 1;
-            } else {
-                if empty_streak != 0 {
-                    elements.push(format!("<empty> x {}", empty_streak));
-                    empty_streak = 0;
-                }
-                elements.push(format!("{:?}", self.leaf_hash_db.get(&format!("{:?}",leaf_hash)).unwrap().val));
-            }
-        }
-        if empty_streak != 0 {
-            elements.push(format!("<empty> x {}", empty_streak));
-        }
-        elements.join(", ")
     }
 }
 
