@@ -1,0 +1,20 @@
+[package]
+name = "query_consistency_proof"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+nova-snark = { workspace = true }
+ff = { workspace = true }
+
+core = { path = "../core" }
+zk = { path = "../zk" }
+
+generic-array = "1.0.0"
+clap = { workspace = true }
+serde = { workspace = true }
+bincode = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+sha2 = { workspace = true }
+hex = { workspace = true }

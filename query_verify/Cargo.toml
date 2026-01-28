@@ -6,10 +6,14 @@ edition = "2021"
 [dependencies]
 query_methods = { path = "../query_methods" }
 core = { path = "../core" , features = ["query_verify"]}
+zk = { path = "../zk" }
 
 bincode = { workspace = true }
 clap = { workspace = true }
 risc0-zkvm = { workspace = true }
+ff = { workspace = true }
+nova-snark = { workspace = true }
+hex = { workspace = true }
 
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

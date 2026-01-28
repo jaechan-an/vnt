@@ -21,3 +21,7 @@ hex = { workspace = true }
 rand = { workspace = true }
 
 core = { path = "../core" , features = ["query_host"]}
+zk = { path = "../zk" }
+
+nova-snark = { workspace = true }
+ff = { workspace = true }

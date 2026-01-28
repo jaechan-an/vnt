@@ -11,9 +11,9 @@ use nova_snark::frontend::{
 use nova_snark::traits::circuit::StepCircuit;
 use std::marker::PhantomData;
 
-use generic_array::typenum::{U1, U2};
-use merkle_trees::vanilla_tree;
-use merkle_trees::vanilla_tree::tree::{Leaf, MerkleTree, idx_to_bits};
+pub use generic_array::typenum::{U1, U2};
+pub use merkle_trees::vanilla_tree;
+pub use merkle_trees::vanilla_tree::tree::{Leaf, MerkleTree, idx_to_bits};
 
 use serde::{Deserialize, Serialize};
 use std::cmp::Ord;
@@ -24,6 +24,25 @@ use std::iter::zip;
 
 // Annoyingly, nova_snark::frontend::num::AllocatedNum and bellpepper::gadgets::num::AllocatedNum
 // seem to be incompatible. Hence we reproduce various functions from other crates below.
+pub fn hash_U1<F: PrimeField>(input: Vec<F>, p: &PoseidonConstants<F, U1>) -> F {
+    let parameter = IOPattern(vec![
+        SpongeOp::Absorb(input.len() as u32),
+        SpongeOp::Squeeze(1),
+    ]);
+    let mut sponge = Sponge::new_with_constants(p, Simplex);
+    let acc = &mut ();
+
+    sponge.start(parameter, None, acc);
+    SpongeAPI::absorb(&mut sponge, input.len() as u32, &input, acc);
+
+    let output = SpongeAPI::squeeze(&mut sponge, 1, acc);
+    assert_eq!(output.len(), 1);
+
+    sponge.finish(acc).unwrap();
+
+    output[0]
+}
+
 pub fn hash_U2<F: PrimeField>(input: Vec<F>, p: &PoseidonConstants<F, U2>) -> F {
     let parameter = IOPattern(vec![
         SpongeOp::Absorb(input.len() as u32),
@@ -305,7 +324,7 @@ impl<T> CompressedLog<T> {
 }
 
 impl<Scalar: PrimeField + PrimeFieldBits> CompressedLog<Scalar> {
-    fn to_leaf(&self) -> Leaf<Scalar, U1> {
+    pub fn to_leaf(&self) -> Leaf<Scalar, U1> {
         Leaf {
             val: vec![self.pack()],
             _arity: PhantomData::<U1>,
@@ -851,6 +870,331 @@ impl<
             initial_root.clone(),
             cur_root.clone(),
             new_hash_chain,
+            new_step_count,
+        ])
+    }
+}
+
+// Code for Consistency Check Circuit (different from aggregation circuit)
+
+/// Convert a 32-byte hash to two field elements (high and low 128 bits each)
+pub fn hash_to_field_elements<F: PrimeField>(hash: &[u8; 32]) -> (F, F) {
+    let mut hi_val = F::ZERO;
+    for (i, &byte) in hash[..16].iter().enumerate() {
+        let byte_scalar = F::from(byte as u64);
+        let shift = F::from(1u64 << (8 * (i % 8)));
+        let big_shift = if i >= 8 {
+            let base = F::from(1u64 << 63) * F::from(2u64);
+            base
+        } else {
+            F::ONE
+        };
+        hi_val += byte_scalar * shift * big_shift;
+    }
+
+    let mut lo_val = F::ZERO;
+    for (i, &byte) in hash[16..].iter().enumerate() {
+        let byte_scalar = F::from(byte as u64);
+        let shift = F::from(1u64 << (8 * (i % 8)));
+        let big_shift = if i >= 8 {
+            let base = F::from(1u64 << 63) * F::from(2u64);
+            base
+        } else {
+            F::ONE
+        };
+        lo_val += byte_scalar * shift * big_shift;
+    }
+
+    (hi_val, lo_val)
+}
+
+/// Compute Merkle root in-circuit using the same algorithm as MerkleTree::from_vec.
+/// This matches the tree structure used by the aggregation circuit.
+pub fn merkle_root_from_leaves_circuit<F, CS, const N: usize>(
+    cs: &mut CS,
+    leaf_values: Vec<AllocatedNum<F>>,
+) -> Result<AllocatedNum<F>, SynthesisError>
+where
+    F: PrimeField + PrimeFieldBits,
+    CS: ConstraintSystem<F>,
+{
+    let leaf_hash_params = Sponge::<F, U1>::api_constants(Strength::Standard);
+    let node_hash_params = Sponge::<F, U2>::api_constants(Strength::Standard);
+
+    // Compute empty leaf hash (hash of Scalar::ZERO)
+    let empty_leaf_hash = hash_U1(vec![F::ZERO], &leaf_hash_params);
+
+    // Precompute empty hashes for each level
+    let mut empty_hashes = vec![empty_leaf_hash];
+    for level in 0..N {
+        let prev = empty_hashes[level];
+        let next = hash_U2(vec![prev, prev], &node_hash_params);
+        empty_hashes.push(next);
+    }
+
+    // Track left hashes at each level (None = empty, Some = waiting for right)
+    let mut left_hashes: Vec<Option<AllocatedNum<F>>> = vec![None; N + 1];
+
+    // Process each leaf
+    for (i, leaf_val) in leaf_values.iter().enumerate() {
+        // Hash the leaf using zk's circuit hash function
+        let mut right_hash = hash_circuit_U1(
+            &mut cs.namespace(|| format!("leaf_hash_{}", i)),
+            vec![leaf_val.clone()],
+            &leaf_hash_params,
+        )?;
+
+        // Propagate up the tree while there's a left hash waiting
+        let mut level = 0;
+        while level < N {
+            match left_hashes[level].take() {
+                Some(left_hash) => {
+                    // Combine left and right hashes
+                    right_hash = hash_circuit_U2(
+                        &mut cs.namespace(|| format!("node_hash_{}_{}", i, level)),
+                        vec![left_hash, right_hash],
+                        &node_hash_params,
+                    )?;
+                    level += 1;
+                }
+                None => {
+                    break;
+                }
+            }
+        }
+        left_hashes[level] = Some(right_hash);
+    }
+
+    // Fill in remaining levels with empty hashes
+    // Allocate empty hash for level 0 (we'll need it for combining)
+    let mut right_hash_var =
+        AllocatedNum::alloc(cs.namespace(|| "empty_leaf_hash"), || Ok(empty_leaf_hash))?;
+
+    for level in 0..N {
+        match left_hashes[level].take() {
+            Some(left_hash) => {
+                // Combine left_hash with right_hash
+                let next_hash = hash_circuit_U2(
+                    &mut cs.namespace(|| format!("fill_node_hash_{}", level)),
+                    vec![left_hash, right_hash_var.clone()],
+                    &node_hash_params,
+                )?;
+
+                match &left_hashes[level + 1] {
+                    Some(_) => {
+                        // There's already something at next level, this becomes new right
+                        right_hash_var = next_hash;
+                    }
+                    None => {
+                        // Store at next level, right becomes empty for next level
+                        left_hashes[level + 1] = Some(next_hash);
+                        right_hash_var = AllocatedNum::alloc(
+                            cs.namespace(|| format!("empty_hash_next_{}", level)),
+                            || Ok(empty_hashes[level + 1]),
+                        )?;
+                    }
+                }
+            }
+            None => {
+                // No left hash, right becomes empty for next level
+                right_hash_var = AllocatedNum::alloc(
+                    cs.namespace(|| format!("empty_propagate_{}", level)),
+                    || Ok(empty_hashes[level + 1]),
+                )?;
+            }
+        }
+    }
+
+    // The root is at left_hashes[N]
+    left_hashes[N]
+        .take()
+        .ok_or(SynthesisError::AssignmentMissing)
+}
+
+/// Circuit that proves consistency between a Merkle root and a SHA-256 hash of the underlying vector.
+/// Uses SHA-256 hashing to be consistent with query_methods/guest/src/main.rs.
+#[derive(Clone, Debug)]
+pub struct ConsistencyCircuit<Scalar: PrimeField> {
+    /// The serialized CLogs data (as bytes, matching guest serialization)
+    pub preimage: Vec<u8>,
+    /// Expected SHA-256 hash (32 bytes)
+    pub expected_hash: [u8; 32],
+    /// Step counter (for Nova's recursive structure)
+    pub step: usize,
+    _p: PhantomData<Scalar>,
+}
+
+impl<Scalar: PrimeField + PrimeFieldBits> ConsistencyCircuit<Scalar> {
+    pub fn new(preimage: Vec<u8>, expected_hash: [u8; 32], step: usize) -> Self {
+        Self {
+            preimage,
+            expected_hash,
+            step,
+            _p: PhantomData,
+        }
+    }
+
+    /// Convert CLogs to bytes matching query_methods/guest/src/main.rs serialization
+    pub fn clogs_to_bytes(clogs: &[core::CLog]) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        for clog in clogs {
+            bytes.extend_from_slice(&clog.id.to_le_bytes());
+            bytes.extend_from_slice(&clog.flow_id.to_le_bytes());
+            bytes.extend_from_slice(&clog.src.to_le_bytes());
+            bytes.extend_from_slice(&clog.dst.to_le_bytes());
+            bytes.extend_from_slice(&clog.packet_size.to_le_bytes());
+            bytes.extend_from_slice(&clog.hop_cnt.to_le_bytes());
+        }
+        bytes
+    }
+
+    pub fn hash_clogs(clogs: &[core::CLog]) -> [u8; 32] {
+        use sha2::{Digest, Sha256};
+        let bytes = Self::clogs_to_bytes(clogs);
+        let mut hasher = Sha256::new();
+        hasher.update(&bytes);
+        hasher.finalize().into()
+    }
+}
+
+impl<Scalar: PrimeField + PrimeFieldBits> StepCircuit<Scalar> for ConsistencyCircuit<Scalar> {
+    fn arity(&self) -> usize {
+        // State: [merkle_root, hash_hi, hash_lo, step_count]
+        4
+    }
+
+    fn synthesize<CS: ConstraintSystem<Scalar>>(
+        &self,
+        cs: &mut CS,
+        z_in: &[AllocatedNum<Scalar>],
+    ) -> Result<Vec<AllocatedNum<Scalar>>, SynthesisError> {
+        use nova_snark::frontend::gadgets::sha256::sha256;
+
+        let [merkle_root, hash_hi, hash_lo, step_count] = match z_in {
+            [a, b, c, d] => [a, b, c, d],
+            _ => panic!("Expected 4 elements in state"),
+        };
+
+        // 1. Allocate preimage bits (MSB-first within each byte, as SHA-256 expects)
+        let mut preimage_bits: Vec<Boolean> = Vec::with_capacity(self.preimage.len() * 8);
+        for (byte_idx, &byte) in self.preimage.iter().enumerate() {
+            for i in (0..8).rev() {
+                let bit_value = (byte >> i) & 1 == 1;
+                let bit = AllocatedBit::alloc(
+                    cs.namespace(|| format!("preimage_bit_{}_{}", byte_idx, i)),
+                    Some(bit_value),
+                )?;
+                preimage_bits.push(Boolean::from(bit));
+            }
+        }
+
+        // 2. Compute SHA-256 in-circuit
+        let hash_bits = sha256(cs.namespace(|| "sha256"), &preimage_bits)?;
+
+        // 3. Verify hash_bits match expected hash (MSB-first in hash output)
+        let expected_bits: Vec<bool> = self
+            .expected_hash
+            .iter()
+            .flat_map(|&byte| (0..8).rev().map(move |i| (byte >> i) & 1 == 1))
+            .collect();
+
+        for (i, (computed_bit, &expected_bit)) in
+            hash_bits.iter().zip(expected_bits.iter()).enumerate()
+        {
+            let expected_var = AllocatedBit::alloc(
+                cs.namespace(|| format!("expected_bit_{}", i)),
+                Some(expected_bit),
+            )?;
+
+            // Constrain computed_bit == expected_bit
+            cs.enforce(
+                || format!("hash_bit_{}_matches", i),
+                |_| computed_bit.lc(CS::one(), Scalar::ONE),
+                |lc| lc + CS::one(),
+                |lc| lc + expected_var.get_variable(),
+            );
+        }
+
+        // 4. Verify that hash_hi and hash_lo encode the expected hash
+        // Convert expected hash to field elements and constrain
+        let (expected_hi, expected_lo) = hash_to_field_elements(&self.expected_hash);
+
+        let expected_hi_var =
+            AllocatedNum::alloc(cs.namespace(|| "expected_hi"), || Ok(expected_hi))?;
+        let expected_lo_var =
+            AllocatedNum::alloc(cs.namespace(|| "expected_lo"), || Ok(expected_lo))?;
+
+        cs.enforce(
+            || "hash_hi matches",
+            |lc| lc + hash_hi.get_variable() - expected_hi_var.get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc,
+        );
+
+        cs.enforce(
+            || "hash_lo matches",
+            |lc| lc + hash_lo.get_variable() - expected_lo_var.get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc,
+        );
+
+        // 5. Pack preimage bits into field elements matching other packing logic.
+        const BITS_PER_CLOG: usize = 192; // Each CLog is 192 bits (6 32 bit fields)
+        let num_clogs = preimage_bits.len() / BITS_PER_CLOG;
+
+        let mut packed_clogs: Vec<AllocatedNum<Scalar>> = Vec::with_capacity(num_clogs);
+        for clog_idx in 0..num_clogs {
+            let clog_start = clog_idx * BITS_PER_CLOG;
+
+            // Reorder bits from MSB-first (SHA-256) to LSB-first (everywhere else)
+            let mut reordered_bits: Vec<Boolean> = Vec::with_capacity(BITS_PER_CLOG);
+            for bit_idx in 0..BITS_PER_CLOG {
+                let byte_idx = bit_idx / 8;
+                let bit_in_byte = bit_idx % 8; // 0 = LSB needed for pack_bits
+                // In preimage_bits (MSB-first), bit 0 of byte is at offset 7
+                let preimage_offset = clog_start + byte_idx * 8 + (7 - bit_in_byte);
+                reordered_bits.push(preimage_bits[preimage_offset].clone());
+            }
+
+            // Pack using the same logic as CompressedLog.pack()
+            let packed = pack_bits(
+                cs.namespace(|| format!("pack_clog_{}", clog_idx)),
+                &reordered_bits,
+            )?;
+            packed_clogs.push(packed);
+        }
+
+        // 6. Recompute Poseidon Merkle Root from packed CLogs
+        const HEIGHT: usize = 15;
+        let computed_root = merkle_root_from_leaves_circuit::<Scalar, _, HEIGHT>(
+            &mut cs.namespace(|| "merkle_root"),
+            packed_clogs,
+        )?;
+
+        // Constrain computed root == input merkle_root
+        cs.enforce(
+            || "merkle_root_matches",
+            |lc| lc + computed_root.get_variable() - merkle_root.get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc,
+        );
+
+        // 7. Update step counter
+        let new_step_count = AllocatedNum::alloc(cs.namespace(|| "new_step_count"), || {
+            Ok(Scalar::from((self.step + 1) as u64))
+        })?;
+
+        cs.enforce(
+            || "step_count increments",
+            |lc| lc + step_count.get_variable() + CS::one(),
+            |lc| lc + CS::one(),
+            |lc| lc + new_step_count.get_variable(),
+        );
+
+        Ok(vec![
+            merkle_root.clone(),
+            hash_hi.clone(),
+            hash_lo.clone(),
             new_step_count,
         ])
     }

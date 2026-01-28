@@ -12,5 +12,7 @@ ff = { workspace = true }
 nova-snark = { workspace = true }
 generic-array = { workspace = true }
 merkle-trees = { path = "merkle-trees" }
-neptune = { version = "13.0.0", default-features = false }
+neptune = { version = "14.0.0", default-features = false, features = ["pasta", "std"] }
 serde = { workspace = true }
+sha2 = { workspace = true }
+core = { path = "../core" }

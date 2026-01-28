@@ -68,6 +68,9 @@ cargo run --release --bin host -- --tables=${NUM_TABLES}
 # Run host verification (verify the aggregation proof)
 cargo run --release --bin verify
 
+# Generate consistency proof (convert Merkle tree to SHA-256) (first part of query logic phase)
+cargo run --release --bin query_consistency_proof 
+
 # Run query_host (query logic phase)
 cargo run --release --bin query_host -- --tables=${NUM_TABLES}
 

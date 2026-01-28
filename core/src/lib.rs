@@ -280,22 +280,16 @@ pub struct AggregationJournal {
 /// Private Inputs for Query
 #[derive(Debug, Serialize, Deserialize)]
 pub struct QueryPrivateInput {
-    /*
-     * All clogs. Used to calculate the query logic.
-     */
+    /// All clogs. Queries are computed over this vector.
     pub clogs: Vec<CLog>,
 
-    /*
-     * Merkle tree of the aggregation.
-     */
-    pub tree: Vec<u8>,
+    /// The previously calculated root of the Merkle Tree.
+    pub cur_root: [u8; 32],
 
-    /*
-     * The root of the Merkle tree previously calculated.
-     */
-    pub root: [u8; 32],
-
+    /// Source for the query.
     pub src: i32,
+    
+    /// Destination for the query.
     pub dst: i32,
 }
 
@@ -313,6 +307,20 @@ pub struct NovaAggregationProof<ScalarRepr: AsRef<[u8]>, CompressedSNARK, Verifi
     pub pub_hash_chain: ScalarRepr,
     pub pub_n_steps: ScalarRepr,
     pub n_steps: usize, // Included for convenience since converting from Scalar to usize is annoying
+    pub verifier_key: VerifierKey,
+    pub compressed_snark: CompressedSNARK,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NovaConsistencyProof<ScalarRepr: AsRef<[u8]>, CompressedSNARK, VerifierKey> {
+    /// Merkle root from the aggregation proof
+    pub pub_merkle_root: ScalarRepr,
+    /// High 128 bits of SHA-256 hash encoded as field element
+    pub pub_hash_hi: ScalarRepr,
+    /// Low 128 bits of SHA-256 hash encoded as field element
+    pub pub_hash_lo: ScalarRepr,
+    /// SHA-256 hash of the CLogs (for reference/verification)
+    pub clogs_hash: [u8; 32],
     pub verifier_key: VerifierKey,
     pub compressed_snark: CompressedSNARK,
 }

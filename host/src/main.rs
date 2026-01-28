@@ -48,6 +48,15 @@ struct Args {
     )]
     proof_file: String,
 
+    /// File containing the vector of CLogs
+    #[clap(
+        short = 'r',
+        long,
+        value_parser,
+        default_value = "merkle_tree_vector_state.bin"
+    )]
+    merkle_tree_vector_state: String,
+
     /// Total count of internal nodes
     #[clap(short = 'n', long, value_parser, default_value_t = 10, value_parser = clap::value_parser!(i32).range(1..=10))]
     tables: i32,
@@ -387,6 +396,18 @@ async fn main() -> Result<(), Error> {
     fs::write(&proof_file, proof_encoded).expect("Failed to write proof");
 
     info!("Proof written to {}", proof_file.display());
+
+    // Write the CLogs to persistent storage
+    let t0 = Instant::now();
+    let clog_vector_encoded = bincode::serialize(&new_clogs).expect("Failed to serialize proof");
+    let serialize_clogs_ms = t0.elapsed().as_millis();
+    info!(elapsed_ms = serialize_clogs_ms, "serialize clogs");
+    info!("clog vector length: {:?} bytes", clog_vector_encoded.len());
+
+    let clog_vector_file = proof_dir.join(&args.merkle_tree_vector_state);
+    fs::write(&clog_vector_file, clog_vector_encoded).expect("Failed to write clog vector");
+
+    info!("Clog vector written to {}", clog_vector_file.display());
 
     // Make sure all logs are dropped.
     drop(log_guard);

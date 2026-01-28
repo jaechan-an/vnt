@@ -12,11 +12,37 @@ use tracing_appender::rolling;
 use tracing_subscriber::fmt::layer;
 use tracing_subscriber::prelude::*;
 
+use ff::{Field, PrimeField};
+use nova_snark::{
+    nova::{CompressedSNARK, VerifierKey},
+    provider::{Bn256EngineKZG, GrumpkinEngine},
+    traits::{snark::RelaxedR1CSSNARKTrait, Engine, Group},
+};
+
 use core::{
     log, merkle::MerkleTree as CLogMerkleTree, postgres::Postgres, util, AggregationJournal, CLog,
-    QueryJournal, QueryPrivateInput,
+    QueryJournal, QueryPrivateInput, NovaAggregationProof,
 };
+use zk;
 mod db;
+
+// Nova related type aliases (they are complicated)
+const HEIGHT: usize = 15;
+const BATCH_SIZE: usize = 10;
+type E1 = Bn256EngineKZG;
+type E2 = GrumpkinEngine;
+type EE1 = nova_snark::provider::hyperkzg::EvaluationEngine<E1>;
+type EE2 = nova_snark::provider::ipa_pc::EvaluationEngine<E2>;
+type S1 = nova_snark::spartan::snark::RelaxedR1CSSNARK<E1, EE1>;
+type S2 = nova_snark::spartan::snark::RelaxedR1CSSNARK<E2, EE2>;
+type Scalar = <<E1 as Engine>::GE as Group>::Scalar;
+type C = zk::AggregationCircuit<Scalar, u32, HEIGHT, BATCH_SIZE>;
+type CompSNARK = CompressedSNARK<E1, E2, C, S1, S2>;
+type AggregationProof = NovaAggregationProof<
+    <Scalar as PrimeField>::Repr,
+    CompSNARK,
+    VerifierKey<E1, E2, C, S1, S2>,
+>;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -33,21 +59,30 @@ struct Args {
     #[clap(long, default_value = "INFO")]
     logfilter: String,
 
-    /// Receipt directory
-    #[clap(long, default_value = "receipts")]
+    /// Proof directory
+    #[clap(long, default_value = "proofs")]
     receiptdir: String,
 
-    /// Aggregation receipt
+    /// Aggregation proof
     #[clap(
         short = 'a',
         long,
         value_parser,
-        default_value = "aggregation_receipt.bin"
+        default_value = "aggregation_proof.bin"
     )]
     aggregation_receiptfile: String,
 
-    /// Output file path to save the receipt.
-    #[clap(short = 'q', long, value_parser, default_value = "query.bin")]
+    /// Merkle Tree leaves
+    #[clap(
+        short = 'a',
+        long,
+        value_parser,
+        default_value = "merkle_tree_vector_state.bin"
+    )]
+    merkle_tree_vector_file: String,
+
+    /// Output file path to save the proof.
+    #[clap(short = 'q', long, value_parser, default_value = "query_proof.bin")]
     receiptfile: String,
 
     /// Total count of internal nodes
@@ -86,28 +121,47 @@ async fn main() -> Result<(), Error> {
 
     info!("Starting query prover");
 
-    // Step 1. Check the aggregation receipt file.
-    let receiptdir = Path::new(".").join(&args.receiptdir);
-    let aggregation_receiptfile = receiptdir.join(&args.aggregation_receiptfile);
+    // Step 1. Check the aggregation proof file.
+    let proof_dir = Path::new(".").join(&args.receiptdir);
+    let aggregation_proof_file = proof_dir.join(&args.aggregation_receiptfile);
 
-    assert!(fs::exists(&aggregation_receiptfile).is_ok());
+    assert!(fs::exists(&aggregation_proof_file).is_ok());
     info!(
-        "Verifying aggregation receipt file: {}",
-        &aggregation_receiptfile.display()
+        "Verifying aggregation proof file: {}",
+        &aggregation_proof_file.display()
     );
 
-    // Load and verify the aggregation receipt file.
-    let aggregation_receipt: Receipt =
-        bincode::deserialize(&fs::read(&aggregation_receiptfile).unwrap()).unwrap();
-    aggregation_receipt.verify(VNT_ZKP_ID).unwrap();
+    // Load and verify the aggregation proof file.
+    let aggregation_proof: AggregationProof =
+        bincode::deserialize(&fs::read(&aggregation_proof_file).unwrap()).unwrap();
 
-    let aggregation_journal: AggregationJournal = aggregation_receipt.journal.decode().unwrap();
-    assert!(
-        aggregation_journal.success,
-        "Aggregation journal verification failed"
-    );
+    // Verify the Nova proof
+    let pub_prev_root = Scalar::from_repr(aggregation_proof.pub_prev_root).unwrap();
+    let pub_cur_root = Scalar::from_repr(aggregation_proof.pub_cur_root).unwrap();
+    let pub_hash_chain = Scalar::from_repr(aggregation_proof.pub_hash_chain).unwrap();
+    let pub_n_steps = Scalar::from_repr(aggregation_proof.pub_n_steps).unwrap();
+    let n_steps = aggregation_proof.n_steps;
+    assert!(Scalar::from(n_steps as u64) == pub_n_steps);
+    let vk = aggregation_proof.verifier_key;
 
-    // Step 2. Read the aggregated logs from the database.
+    let initial_state = &[pub_prev_root, pub_prev_root, Scalar::ZERO, Scalar::ZERO];
+
+    let res = aggregation_proof
+        .compressed_snark
+        .verify(&vk, n_steps, initial_state);
+    assert!(res.is_ok());
+    let final_state = res.unwrap();
+    match &final_state[..] {
+        [a, b, c, d] => {
+            assert!(*a == pub_prev_root);
+            assert!(*b == pub_cur_root);
+            assert!(*c == pub_hash_chain);
+            assert!(*d == pub_n_steps);
+        }
+        _ => panic!("Expected 4 elements"),
+    }
+
+    // // Step 2. Read the aggregated logs from the database.
     let clogs: Vec<CLog> = db::get_clogs(&pg_client).await;
 
     // Select random source and destination for the query.
@@ -117,14 +171,14 @@ async fn main() -> Result<(), Error> {
     while src == dst {
         dst = rand::random::<u32>() % args.tables as u32;
     }
-
     assert!(src != dst, "Source and destination must be different");
 
-    let merkle_tree: CLogMerkleTree<CLog>;
-    merkle_tree = util::deserialize_merkle_tree(&aggregation_journal.tree);
+    let merkle_tree_vector_file = proof_dir.join(&args.merkle_tree_vector_file);
+    let clogs_from_file: Vec<CLog> =
+        bincode::deserialize(&fs::read(&merkle_tree_vector_file).unwrap()).unwrap();
     assert!(
-        merkle_tree.leaves_len() == clogs.len(),
-        "Merkle tree size mismatch"
+        clogs_from_file.len() == clogs.len(),
+        "Merkle tree vector size mismatch"
     );
 
     info!(
@@ -136,11 +190,10 @@ async fn main() -> Result<(), Error> {
 
     // Step 3. Pass the Merkle tree to the guest program.
     let input = QueryPrivateInput {
-        clogs: clogs,                   // Aggregated logs: Vec<CLog>
-        tree: aggregation_journal.tree, // Aggregation Merkle tree: Vec<u8>
-        root: aggregation_journal.root, // Aggregation Merkle root: Vec<u8>
-        src: src as i32,                // Source for query
-        dst: dst as i32,                // Destination for query
+        clogs: clogs,                     // Aggregated logs: Vec<CLog>
+        cur_root: pub_cur_root.to_repr().try_into().unwrap(), // Aggregation Merkle root: Vec<u8>
+        src: src as i32,                  // Source for query
+        dst: dst as i32,                  // Destination for query
     };
 
     let env = ExecutorEnv::builder()
@@ -150,7 +203,10 @@ async fn main() -> Result<(), Error> {
         .unwrap();
 
     let prover = default_prover();
-    let opts = ProverOpts::groth16();
+    // TODO: Experiment with different proving options. 
+    // succinct() and composite() are the other options.
+    // I expect they will be faster.
+    let opts = ProverOpts::composite();
 
     let start = Instant::now();
     let prove_info = prover
