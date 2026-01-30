@@ -17,10 +17,11 @@ pub use merkle_trees::vanilla_tree::tree::{Leaf, MerkleTree, idx_to_bits};
 
 use serde::{Deserialize, Serialize};
 use std::cmp::Ord;
-use std::collections::HashMap;
-use std::collections::hash_map::Entry;
+use std::collections::{BTreeSet, HashMap};
+use std::fmt::Debug;
 use std::hash::Hash;
 use std::iter::zip;
+use std::ops::Bound;
 
 // Annoyingly, nova_snark::frontend::num::AllocatedNum and bellpepper::gadgets::num::AllocatedNum
 // seem to be incompatible. Hence we reproduce various functions from other crates below.
@@ -203,6 +204,28 @@ pub fn path_computed_root<
 }
 // end reproduced functions
 
+fn scalar_to_u64<Scalar: PrimeField + PrimeFieldBits>(n: Scalar) -> u64 {
+    let bits: Vec<bool> = n.to_le_bits().into_iter().collect();
+    bits[0..64]
+        .iter()
+        .rev()
+        .fold(0u64, |acc, x| acc * 2 + (*x as u64))
+}
+
+fn allocated_n_bits_le<Scalar: PrimeField + PrimeFieldBits, CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    value: Scalar,
+    n_bits: usize,
+) -> Result<Vec<AllocatedBit>, SynthesisError> {
+    value
+        .to_le_bits()
+        .into_iter()
+        .enumerate()
+        .take(n_bits)
+        .map(|(i, b)| AllocatedBit::alloc(cs.namespace(|| format!("bit {i}")), Some(b)))
+        .collect()
+}
+
 #[derive(Clone, Debug)]
 pub struct Log<T> {
     pub id: T,
@@ -255,23 +278,102 @@ impl<T: Copy + Into<u64>> Log<T> {
     }
 }
 
-pub fn update_clogs<T: Eq + Hash + Copy + Into<u64>, Scalar: PrimeField + PrimeFieldBits>(
-    compressed_logs: &mut HashMap<T, CompressedLog<Scalar>>,
+fn first_key_before<'a, K: Ord>(btreeset: &'a BTreeSet<K>, key: &K) -> Option<&'a K> {
+    btreeset
+        .range((Bound::Unbounded, Bound::Excluded(key)))
+        .next_back()
+}
+
+fn first_key_after<'a, K: Ord>(btreeset: &'a BTreeSet<K>, key: &K) -> Option<&'a K> {
+    btreeset
+        .range((Bound::Excluded(key), Bound::Unbounded))
+        .next()
+}
+
+// Update compressed_logs and priorities with the raw log as input.
+pub fn update_clogs<
+    const HEIGHT: usize,
+    T: Ord + Hash + Copy + Into<u64> + Sync + Send,
+    Scalar: PrimeField + PrimeFieldBits,
+>(
+    tree: &mut MerkleTree<Scalar, HEIGHT, U1, U2>,
+    compressed_logs: &mut HashMap<u64, CompressedLog<Scalar>>,
+    priorities: &mut BTreeSet<(bool, u64, usize, u64)>,
     raw_log: &Log<T>,
-) -> CompressedLog<Scalar> {
+) -> Update<Scalar, T> {
     let scalar_log = raw_log.to_scalar_log::<Scalar>();
     let len = compressed_logs.len();
-    match compressed_logs.entry(raw_log.flow_id) {
-        Entry::Occupied(clog) => {
-            let clog = clog.into_mut();
-            clog.hop_cnt += scalar_log.hop_cnt;
-            (*clog).clone()
-        }
-        Entry::Vacant(entry) => {
-            let clog = CompressedLog::from_idx_log(len, &scalar_log);
-            entry.insert(clog.clone());
-            clog
-        }
+
+    let (old_prev_clog_update, old_clog, mut to_insert) =
+        match compressed_logs.get(&raw_log.flow_id.into()) {
+            Some(old_clog) => {
+                let old_clog = old_clog.clone();
+                let mut clog = old_clog.clone();
+
+                // Remove log from linked list: old_prev.next = cur.next
+                let old_priority = clog.priority_key();
+                let prev_priority = first_key_before(priorities, &old_priority).unwrap();
+                let (_, _, _, prev_flow_id) = prev_priority;
+                let prev = compressed_logs.get_mut(prev_flow_id).unwrap();
+                let old_prev = prev.clone();
+                prev.next_idx = clog.next_idx.clone();
+
+                // Remove old priority
+                assert!(
+                    priorities.remove(&old_priority),
+                    "old priority did not exist"
+                );
+
+                // Update clog hop count
+                clog.hop_cnt += scalar_log.hop_cnt;
+
+                (
+                    ClogUpdate::do_update(tree, old_prev, prev.clone()),
+                    old_clog.clone(),
+                    clog,
+                )
+            }
+            None => (
+                ClogUpdate::noop(tree),
+                CompressedLog::zero(len),
+                CompressedLog::from_idx_log(len, &scalar_log),
+            ),
+        };
+
+    // Insert log into linked list: new_prev.next = cur.idx, cur.next = new_next.idx
+    let priority = to_insert.priority_key();
+    let priority_after = first_key_after(priorities, &priority).cloned();
+    let priority_before = *first_key_before(priorities, &priority).unwrap();
+
+    // update cur.next, update tree
+    let (next_idx, next_flow_id) =
+        priority_after.map_or((0, 0), |(_, _, idx, flow_id)| (idx as u64, flow_id));
+    to_insert.next_idx = next_idx.into();
+    let clog_update = ClogUpdate::do_update(tree, old_clog, to_insert.clone());
+    compressed_logs.insert(raw_log.flow_id.into(), to_insert.clone());
+
+    // Insert priority
+    priorities.insert(priority);
+
+    // update new_prev.next
+    let (_, _, _, prev_flow_id) = priority_before;
+    let new_prev = compressed_logs.get_mut(&prev_flow_id).unwrap();
+    let new_prev_saved = new_prev.clone();
+    new_prev.next_idx = (to_insert.merkle_idx as u64).into();
+
+    // update new prev clog in tree
+    let new_prev_clog_update = ClogUpdate::do_update(tree, new_prev_saved, new_prev.clone());
+
+    // Get next clog info
+    let new_next_clog_info =
+        ClogPath::verify(tree, compressed_logs.get(&next_flow_id).unwrap().clone());
+
+    Update {
+        raw_log: raw_log.clone(),
+        old_prev_clog_update,
+        clog_update,
+        new_prev_clog_update,
+        new_next_clog_info,
     }
 }
 
@@ -296,6 +398,7 @@ pub struct CompressedLog<Scalar> {
     pub dst: Scalar,
     pub packet_size: Scalar,
     pub hop_cnt: Scalar,
+    pub next_idx: Scalar,
 }
 
 const CLOG_OFFSETS: CompressedLog<(usize, usize)> = CompressedLog {
@@ -307,6 +410,7 @@ const CLOG_OFFSETS: CompressedLog<(usize, usize)> = CompressedLog {
     dst: (ENTRY_SIZE * 3, ENTRY_SIZE),
     packet_size: (ENTRY_SIZE * 4, ENTRY_SIZE),
     hop_cnt: (ENTRY_SIZE * 5, ENTRY_SIZE),
+    next_idx: (ENTRY_SIZE * 6, ENTRY_SIZE),
 };
 
 impl<T> CompressedLog<T> {
@@ -319,11 +423,27 @@ impl<T> CompressedLog<T> {
             &self.dst,
             &self.packet_size,
             &self.hop_cnt,
+            &self.next_idx,
         ]
     }
 }
 
 impl<Scalar: PrimeField + PrimeFieldBits> CompressedLog<Scalar> {
+    fn priority(&self) -> Scalar {
+        self.hop_cnt
+    }
+
+    fn priority_key(&self) -> (bool, u64, usize, u64) {
+        // returns (is_node, priority, merkle_idx, flow_id)
+        // "special" is false for the linked list head, true for all clogs
+        (
+            true,
+            scalar_to_u64(self.priority()),
+            self.merkle_idx,
+            scalar_to_u64(self.flow_id),
+        )
+    }
+
     pub fn to_leaf(&self) -> Leaf<Scalar, U1> {
         Leaf {
             val: vec![self.pack()],
@@ -334,12 +454,13 @@ impl<Scalar: PrimeField + PrimeFieldBits> CompressedLog<Scalar> {
     fn from_idx_log(merkle_idx: usize, log: &Log<Scalar>) -> Self {
         CompressedLog {
             merkle_idx,
-            id: Scalar::from((merkle_idx as u64) + 1),
+            id: Scalar::from(merkle_idx as u64),
             flow_id: log.flow_id,
             src: log.src,
             dst: log.dst,
             packet_size: log.packet_size,
             hop_cnt: log.hop_cnt,
+            next_idx: Scalar::ZERO,
         }
     }
 
@@ -362,11 +483,10 @@ impl<Scalar: PrimeField + PrimeFieldBits> CompressedLog<Scalar> {
             dst: self.dst.to_repr(),
             packet_size: self.packet_size.to_repr(),
             hop_cnt: self.hop_cnt.to_repr(),
+            next_idx: self.next_idx.to_repr(),
         }
     }
-}
 
-impl<Scalar: PrimeField + PrimeFieldBits> CompressedLog<Scalar> {
     pub fn from_repr(repr: &CompressedLog<Scalar::Repr>) -> Self {
         CompressedLog {
             merkle_idx: repr.merkle_idx,
@@ -376,6 +496,20 @@ impl<Scalar: PrimeField + PrimeFieldBits> CompressedLog<Scalar> {
             dst: Scalar::from_repr(repr.dst).unwrap(),
             packet_size: Scalar::from_repr(repr.packet_size).unwrap(),
             hop_cnt: Scalar::from_repr(repr.hop_cnt).unwrap(),
+            next_idx: Scalar::from_repr(repr.next_idx).unwrap(),
+        }
+    }
+
+    pub fn zero(idx: usize) -> Self {
+        Self {
+            merkle_idx: idx,
+            id: Scalar::ZERO,
+            flow_id: Scalar::ZERO,
+            src: Scalar::ZERO,
+            dst: Scalar::ZERO,
+            packet_size: Scalar::ZERO,
+            hop_cnt: Scalar::ZERO,
+            next_idx: Scalar::ZERO,
         }
     }
 }
@@ -424,15 +558,189 @@ fn tree_str<Scalar: PrimeField + PrimeFieldBits, const N: usize>(
 }
 
 #[derive(Clone, Debug)]
-pub struct Batch<
+pub struct ClogPath<Scalar: PrimeField + PrimeFieldBits> {
+    pub idx: usize,                  // Index in merkle tree
+    pub siblings: Vec<Scalar>,       // Siblings that verify clog
+    pub clog: CompressedLog<Scalar>, // Old compressed log
+}
+
+impl<Scalar: PrimeField + PrimeFieldBits> ClogPath<Scalar> {
+    pub fn noop<const HEIGHT: usize>(tree: &MerkleTree<Scalar, HEIGHT, U1, U2>) -> Self {
+        let last_idx = (1 << HEIGHT) - 1;
+        let zero_clog = CompressedLog {
+            merkle_idx: last_idx,
+            id: Scalar::ZERO,
+            flow_id: Scalar::ZERO,
+            src: Scalar::ZERO,
+            dst: Scalar::ZERO,
+            packet_size: Scalar::ZERO,
+            hop_cnt: Scalar::ZERO,
+            next_idx: Scalar::ZERO,
+        };
+        let idx_bits = idx_to_bits(HEIGHT, Scalar::from(last_idx as u64));
+        let siblings_path = tree.get_siblings_path(idx_bits);
+        ClogPath {
+            idx: last_idx,
+            siblings: siblings_path.siblings,
+            clog: zero_clog.clone(),
+        }
+    }
+
+    pub fn verify<const HEIGHT: usize>(
+        tree: &MerkleTree<Scalar, HEIGHT, U1, U2>,
+        clog: CompressedLog<Scalar>,
+    ) -> Self {
+        let idx = clog.merkle_idx;
+        let idx_bits = idx_to_bits(HEIGHT, Scalar::from(idx as u64));
+        let siblings_path = tree.get_siblings_path(idx_bits.clone());
+        ClogPath {
+            idx,
+            siblings: siblings_path.siblings,
+            clog,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ClogUpdate<Scalar: PrimeField + PrimeFieldBits> {
+    pub idx: usize,                      // Index in merkle tree
+    pub siblings: Vec<Scalar>,           // Siblings that verify clog
+    pub old_clog: CompressedLog<Scalar>, // Old compressed log
+    pub new_clog: CompressedLog<Scalar>, // New compressed log
+}
+
+impl<Scalar: PrimeField + PrimeFieldBits> ClogUpdate<Scalar> {
+    pub fn noop<const HEIGHT: usize>(tree: &MerkleTree<Scalar, HEIGHT, U1, U2>) -> Self {
+        let last_idx = (1 << HEIGHT) - 1;
+        let zero_clog = CompressedLog {
+            merkle_idx: last_idx,
+            id: Scalar::ZERO,
+            flow_id: Scalar::ZERO,
+            src: Scalar::ZERO,
+            dst: Scalar::ZERO,
+            packet_size: Scalar::ZERO,
+            hop_cnt: Scalar::ZERO,
+            next_idx: Scalar::ZERO,
+        };
+        let idx_bits = idx_to_bits(HEIGHT, Scalar::from(last_idx as u64));
+        let siblings_path = tree.get_siblings_path(idx_bits);
+        ClogUpdate {
+            idx: last_idx,
+            siblings: siblings_path.siblings,
+            old_clog: zero_clog.clone(),
+            new_clog: zero_clog.clone(),
+        }
+    }
+
+    pub fn do_update<const HEIGHT: usize>(
+        tree: &mut MerkleTree<Scalar, HEIGHT, U1, U2>,
+        old_clog: CompressedLog<Scalar>,
+        new_clog: CompressedLog<Scalar>,
+    ) -> Self {
+        let idx = new_clog.merkle_idx;
+        let idx_bits = idx_to_bits(HEIGHT, Scalar::from(idx as u64));
+        let siblings_path = tree.get_siblings_path(idx_bits.clone());
+        tree.insert(idx_bits, &new_clog.to_leaf());
+        ClogUpdate {
+            idx,
+            siblings: siblings_path.siblings,
+            old_clog,
+            new_clog,
+        }
+    }
+
+    // Helper function for processing merkle tree update
+    // Returns (index_bits, old_unpacked, old_packed, new_packed, new_root)
+    pub fn merkle_tree_update_circuit<const HEIGHT: usize, CS: ConstraintSystem<Scalar>>(
+        &self,
+        mut cs: CS,
+        cur_root: AllocatedNum<Scalar>,
+    ) -> Result<
+        (
+            Vec<AllocatedBit>,
+            Vec<Boolean>,
+            AllocatedNum<Scalar>,
+            AllocatedNum<Scalar>,
+            AllocatedNum<Scalar>,
+        ),
+        SynthesisError,
+    > {
+        // Get index and siblings
+        let index_bits = idx_to_bits(HEIGHT, Scalar::from(self.idx as u64));
+
+        let index_bits_var = index_bits
+            .clone()
+            .into_iter()
+            .enumerate()
+            .map(|(j, b)| AllocatedBit::alloc(cs.namespace(|| format!("index bit {j}")), Some(b)))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let siblings_var = self
+            .siblings
+            .clone()
+            .into_iter()
+            .enumerate()
+            .map(|(j, s)| AllocatedNum::alloc(cs.namespace(|| format!("sibling {j}")), || Ok(s)))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // Compute root for old_clog
+        let old_unpacked_bits: Vec<_> = field_into_allocated_bits_le(
+            cs.namespace(|| "old clog bit decomposition"),
+            Some(self.old_clog.pack()),
+        )?
+        .iter()
+        .map(|bit| Boolean::from(bit.clone()))
+        .collect();
+        let old_packed_clog_var =
+            pack_bits(cs.namespace(|| "old packed clog"), &old_unpacked_bits)?;
+
+        let old_computed_root_var = path_computed_root::<Scalar, HEIGHT, _>(
+            &mut cs.namespace(|| "valid old"),
+            vec![old_packed_clog_var.clone()],
+            index_bits_var.clone(),
+            siblings_var.clone(),
+        )?;
+
+        // Verify membership of old_clog
+        enforce_checked(
+            &mut cs,
+            format!("Verify old root"),
+            vec![Var::Plus(&cur_root)],
+            vec![Var::PlusOne],
+            vec![Var::Plus(&old_computed_root_var)],
+        );
+
+        // Compute root for new_clog
+        let new_packed_clog_var =
+            AllocatedNum::alloc(cs.namespace(|| format!("new packed clog")), || {
+                Ok(self.new_clog.pack())
+            })?;
+        let new_computed_root_var = path_computed_root::<Scalar, HEIGHT, _>(
+            &mut cs.namespace(|| "valid new"),
+            vec![new_packed_clog_var.clone()],
+            index_bits_var.clone(),
+            siblings_var.clone(),
+        )?;
+        Ok((
+            index_bits_var,
+            old_unpacked_bits,
+            old_packed_clog_var,
+            new_packed_clog_var,
+            new_computed_root_var,
+        ))
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Update<
     Scalar: PrimeField + PrimeFieldBits,
     K: Ord + Hash + Copy + Into<u64> + Sync + Send,
-    const BATCH_SIZE: usize,
 > {
-    pub raw_logs: [Log<K>; BATCH_SIZE], // Single batch of raw logs from router
-    pub idxs: [usize; BATCH_SIZE],
-    pub siblings: [Vec<Scalar>; BATCH_SIZE],
-    pub old_clogs: [Option<CompressedLog<Scalar>>; BATCH_SIZE], // Old compressed logs
+    pub raw_log: Log<K>,                          // Single raw log from router
+    pub old_prev_clog_update: ClogUpdate<Scalar>, // Update info for old prev clog
+    pub clog_update: ClogUpdate<Scalar>,          // Update info for clog
+    pub new_prev_clog_update: ClogUpdate<Scalar>, // Update info for new prev clog
+    pub new_next_clog_info: ClogPath<Scalar>,     // Verification info for new next clog
 }
 
 #[derive(Clone, Debug)]
@@ -442,13 +750,13 @@ pub struct AggregationCircuit<
     const HEIGHT: usize,
     const BATCH_SIZE: usize,
 > {
-    pub batches: Vec<Batch<Scalar, K, BATCH_SIZE>>,
+    pub batches: Vec<[Update<Scalar, K>; BATCH_SIZE]>,
     pub step_count: Scalar,
 }
 
 impl<
     Scalar: PrimeField + PrimeFieldBits,
-    K: Ord + Hash + Copy + Into<u64> + Sync + Send,
+    K: Ord + Hash + Copy + Into<u64> + Sync + Send + Debug,
     const HEIGHT: usize,
     const BATCH_SIZE: usize,
 > AggregationCircuit<Scalar, K, HEIGHT, BATCH_SIZE>
@@ -480,24 +788,55 @@ impl<
         );
 
         // Build prev_tree from old compressed logs
-        let mut merkle_leaves: Vec<Option<_>> = Vec::new();
-        merkle_leaves.resize(old_compressed_logs.len(), None);
+        // Index 0 is reserved for linked list head
+        let zero_clog = CompressedLog {
+            merkle_idx: 0,
+            id: Scalar::ZERO,
+            flow_id: Scalar::ZERO,
+            src: Scalar::ZERO,
+            dst: Scalar::ZERO,
+            packet_size: Scalar::ZERO,
+            hop_cnt: Scalar::ZERO,
+            next_idx: Scalar::ZERO,
+        };
+
+        // Create vector of leaves, and also insert priorities into a BTreeSet to get sorted order
+        let mut merkle_leaves: Vec<Option<_>> = vec![Some(zero_clog.clone())];
+        merkle_leaves.resize(old_compressed_logs.len() + 1, None);
+        let mut clog_priorities: BTreeSet<(bool, u64, usize, u64)> = BTreeSet::new();
         for clog in old_compressed_logs.values() {
-            merkle_leaves[clog.merkle_idx] = Some(clog);
+            merkle_leaves[clog.merkle_idx] = Some(clog.clone());
+            clog_priorities.insert(clog.priority_key());
         }
 
-        let merkle_leaves: Vec<_> = merkle_leaves
-            .iter()
-            .map(|clog| clog.unwrap().to_leaf())
-            .collect();
+        let mut merkle_leaves: Vec<_> = merkle_leaves
+            .into_iter()
+            .collect::<Option<Vec<_>>>()
+            .unwrap();
+
+        let mut compressed_logs: HashMap<u64, CompressedLog<Scalar>> = HashMap::new();
+
+        // Assign next_idx to each old clog
+        let mut prev_idx: usize = 0;
+        for (_is_node, _priority, merkle_idx, _flow_id) in clog_priorities.iter() {
+            merkle_leaves[prev_idx].next_idx = Scalar::from(*merkle_idx as u64);
+            prev_idx = *merkle_idx;
+        }
+
+        // Compress existing logs
+        for clog in merkle_leaves.iter() {
+            compressed_logs.insert(scalar_to_u64(clog.flow_id), clog.clone());
+        }
+
+        // Insert linked list head
+        clog_priorities.insert((false, 0, 0, 0));
+
+        let merkle_leaves: Vec<_> = merkle_leaves.iter().map(|clog| clog.to_leaf()).collect();
 
         let prev_tree: MerkleTree<Scalar, HEIGHT, U1, U2> =
             MerkleTree::from_vec(merkle_leaves.clone(), vanilla_tree::tree::Leaf::default());
 
         println!("prev tree: {}", tree_str(&prev_tree));
-
-        // Compress the new logs
-        let mut compressed_logs = old_compressed_logs.clone();
 
         let mut new_tree = prev_tree.clone();
 
@@ -505,69 +844,48 @@ impl<
         let mut hash_chain = Scalar::ZERO;
 
         // Create circuits
-        let circuits: Vec<_> = step_logs_iter
-            .enumerate()
-            .map(|(step, batches)| {
-                let circuit_batches = batches
-                    .iter()
-                    .map(|batch| {
-                        let mut idxs: Vec<usize> = Vec::new();
-                        let mut siblings: Vec<Vec<Scalar>> = Vec::new();
-                        let mut old_clogs: Vec<Option<CompressedLog<Scalar>>> = Vec::new();
-                        let mut scalar_logs: Vec<Scalar> = Vec::new();
+        let mut circuits: Vec<AggregationCircuit<_, _, _, _>> = Vec::new();
+        for (step, batches) in step_logs_iter.enumerate() {
+            let mut circuit_batches: Vec<[Update<Scalar, K>; BATCH_SIZE]> = Vec::new();
+            for batch in batches {
+                let mut scalar_logs: Vec<Scalar> = Vec::new();
+                let mut update_batch: Vec<Update<Scalar, K>> = Vec::new();
 
-                        for log in batch.into_iter() {
-                            let scalar_log = log.to_scalar_log();
-                            let packed_log = scalar_log.pack();
-                            scalar_logs.push(packed_log);
-                            let old_clog = compressed_logs.get(&log.flow_id).cloned();
-                            if packed_log != Scalar::ZERO {
-                                let clog = update_clogs(&mut compressed_logs, &log);
-                                let idx = clog.merkle_idx;
-                                let idx_bits = idx_to_bits(HEIGHT, Scalar::from(idx as u64));
-                                new_tree.insert(idx_bits.clone(), &clog.to_leaf());
-                                let siblings_path = new_tree.get_siblings_path(idx_bits);
-                                siblings.push(siblings_path.siblings);
-                                idxs.push(idx);
-                                old_clogs.push(old_clog);
-                            } else {
-                                // Log is empty -- "insert" empty CLog at largest possible index to
-                                // simulate a no-op
-                                let last_idx = (1 << HEIGHT) - 1;
-                                let zero_clog = CompressedLog {
-                                    merkle_idx: last_idx,
-                                    id: Scalar::ZERO,
-                                    flow_id: Scalar::ZERO,
-                                    src: Scalar::ZERO,
-                                    dst: Scalar::ZERO,
-                                    packet_size: Scalar::ZERO,
-                                    hop_cnt: Scalar::ZERO,
-                                };
-                                let idx_bits = idx_to_bits(HEIGHT, Scalar::from(last_idx as u64));
-                                let siblings_path = new_tree.get_siblings_path(idx_bits);
-                                siblings.push(siblings_path.siblings);
-                                idxs.push(last_idx);
-                                old_clogs.push(Some(zero_clog));
-                            }
+                for log in batch {
+                    let scalar_log = log.to_scalar_log();
+                    let packed_log = scalar_log.pack();
+                    scalar_logs.push(packed_log);
+                    let update = if packed_log != Scalar::ZERO {
+                        update_clogs(
+                            &mut new_tree,
+                            &mut compressed_logs,
+                            &mut clog_priorities,
+                            &log,
+                        )
+                    } else {
+                        // Log is empty
+                        Update {
+                            raw_log: log.clone(),
+                            old_prev_clog_update: ClogUpdate::noop(&new_tree),
+                            clog_update: ClogUpdate::noop(&new_tree),
+                            new_prev_clog_update: ClogUpdate::noop(&new_tree),
+                            new_next_clog_info: ClogPath::noop(&new_tree),
                         }
-
-                        let batch_hash = hash_U2(scalar_logs, &log_hash_constants);
-                        hash_chain = hash_U2(vec![hash_chain, batch_hash], &log_hash_constants);
-
-                        Batch {
-                            raw_logs: batch.clone(),
-                            idxs: idxs.try_into().unwrap(),
-                            siblings: siblings.try_into().unwrap(),
-                            old_clogs: old_clogs.try_into().unwrap(),
-                        }
-                    })
-                    .collect();
-                Self {
-                    batches: circuit_batches,
-                    step_count: Scalar::from(step as u64),
+                    };
+                    update_batch.push(update);
                 }
-            })
-            .collect::<Vec<_>>();
+
+                // Compute batch hash and update hash chain
+                let batch_hash = hash_U2(scalar_logs, &log_hash_constants);
+                hash_chain = hash_U2(vec![hash_chain, batch_hash], &log_hash_constants);
+
+                circuit_batches.push(update_batch.try_into().unwrap());
+            }
+            circuits.push(Self {
+                batches: circuit_batches,
+                step_count: Scalar::from(step as u64),
+            });
+        }
 
         println!("next tree: {}", tree_str(&new_tree));
 
@@ -582,6 +900,69 @@ impl<
             ),
         )
     }
+}
+
+#[derive(Clone)]
+enum Var<'a, Scalar: PrimeField> {
+    Plus(&'a AllocatedNum<Scalar>),
+    Minus(&'a AllocatedNum<Scalar>),
+    PlusOne,
+    MinusOne,
+}
+
+// Wrapper around cs.enforce() that asserts constraints
+fn enforce_checked<AR: Into<String>, Scalar: PrimeField, CS: ConstraintSystem<Scalar>>(
+    cs: &mut CS,
+    annotation: AR,
+    a: Vec<Var<Scalar>>,
+    b: Vec<Var<Scalar>>,
+    c: Vec<Var<Scalar>>,
+) {
+    let annotation: String = annotation.into();
+
+    // Nova runs synthesize twice, and on the first run all the variables have value None.
+    // To handle this we wrap the check in an IIFE returning a Result, which is then discarded.
+    let _ = || -> Result<(), ()> {
+        let accumulate_value = |variables: &Vec<Var<Scalar>>| {
+            variables.iter().fold(Ok(Scalar::ZERO), |acc, x| {
+                Ok(match x {
+                    Var::Plus(var) => acc? + var.get_value().ok_or(())?,
+                    Var::Minus(var) => acc? - var.get_value().ok_or(())?,
+                    Var::PlusOne => acc? + Scalar::ONE,
+                    Var::MinusOne => acc? - Scalar::ONE,
+                })
+            })
+        };
+
+        let a_value = accumulate_value(&a)?;
+        let b_value = accumulate_value(&b)?;
+        let c_value = accumulate_value(&c)?;
+        assert!(
+            a_value * b_value == c_value,
+            "constraint '{}' failed: {:?} * {:?} != {:?}",
+            annotation.clone(),
+            a_value,
+            b_value,
+            c_value
+        );
+        Ok(())
+    }();
+
+    let accumulate_lincomb = |lc, variables: &Vec<Var<Scalar>>| {
+        variables.iter().fold(lc, |lc, x| match x {
+            Var::Plus(var) => lc + var.get_variable(),
+            Var::Minus(var) => lc - var.get_variable(),
+            Var::PlusOne => lc + CS::one(),
+            Var::MinusOne => lc - CS::one(),
+        })
+    };
+
+    cs.enforce(
+        || annotation,
+        |lc| accumulate_lincomb(lc, &a),
+        |lc| accumulate_lincomb(lc, &b),
+        |lc| accumulate_lincomb(lc, &c),
+    );
 }
 
 impl<
@@ -619,26 +1000,29 @@ impl<
             &step_count_inv_var,
         )?;
 
-        cs.enforce(
-            || "step_count_invertible is a boolean",
-            |lc| lc + step_count_invertible.get_variable(),
-            |lc| lc + step_count_invertible.get_variable() - CS::one(),
-            |lc| lc,
+        enforce_checked(
+            cs,
+            "step_count_invertible is a boolean",
+            vec![Var::Plus(&step_count_invertible)],
+            vec![Var::Plus(&step_count_invertible), Var::MinusOne],
+            vec![],
         );
 
         // Enforce initial conditions
-        cs.enforce(
-            || "step_count != 0 OR initial_root == prev_root",
-            |lc| lc + prev_root.get_variable() - initial_root.get_variable(),
-            |lc| lc + step_count_invertible.get_variable() - CS::one(),
-            |lc| lc,
+        enforce_checked(
+            cs,
+            "step_count != 0 OR initial_root == prev_root",
+            vec![Var::Plus(&prev_root), Var::Minus(&initial_root)],
+            vec![Var::Plus(&step_count_invertible), Var::MinusOne],
+            vec![],
         );
 
-        cs.enforce(
-            || "step_count != 0 OR hash_chain == 0",
-            |lc| lc + hash_chain.get_variable(),
-            |lc| lc + step_count_invertible.get_variable() - CS::one(),
-            |lc| lc,
+        enforce_checked(
+            cs,
+            "step_count != 0 OR hash_chain == 0",
+            vec![Var::Plus(&hash_chain)],
+            vec![Var::Plus(&step_count_invertible), Var::MinusOne],
+            vec![],
         );
 
         // Make sure step_count < 2^128
@@ -655,11 +1039,12 @@ impl<
             &unpacked_step_bits[..128],
         )?;
 
-        cs.enforce(
-            || "step_count < 2^128",
-            |lc| lc + packed_step_var.get_variable(),
-            |lc| lc + CS::one(),
-            |lc| lc + step_count.get_variable(),
+        enforce_checked(
+            cs,
+            "step_count < 2^128",
+            vec![Var::Plus(&packed_step_var)],
+            vec![Var::PlusOne],
+            vec![Var::Plus(&step_count)],
         );
 
         // Process batches
@@ -669,173 +1054,369 @@ impl<
         for (batch_idx, batch) in self.batches.iter().enumerate() {
             let mut batch_vars = Vec::new();
             for log_idx in 0..BATCH_SIZE {
-                let idx = batch.idxs[log_idx];
+                let update = &batch[log_idx];
+                let idx_info = format!("log {batch_idx}-{log_idx}");
 
-                let scalar_log = batch.raw_logs[log_idx].to_scalar_log();
+                let (next_idx_offset, next_idx_sz) = CLOG_OFFSETS.next_idx;
+                let (hop_cnt_offset, hop_cnt_sz) = CLOG_OFFSETS.hop_cnt;
 
-                // This creates as many variables as the field size in bits, but we only use some
-                // of them. Not sure if the unused ones get eliminated
+                let (log_hop_cnt_offset, log_hop_cnt_sz) = LOG_OFFSETS.hop_cnt;
+
+                // Extract raw log hop count from bit decomposition
                 let unpacked_bits: Vec<_> = field_into_allocated_bits_le(
-                    cs.namespace(|| format!("log {batch_idx}-{log_idx}: bit decomposition")),
-                    Some(scalar_log.pack()),
+                    cs.namespace(|| format!("{idx_info}: bit decomposition")),
+                    Some(update.raw_log.to_scalar_log().pack()),
                 )?
                 .iter()
                 .map(|bit| Boolean::from(bit.clone()))
                 .collect();
 
+                let hop_cnt_var = pack_bits(
+                    cs.namespace(|| format!("{idx_info}: hop_cnt")),
+                    &unpacked_bits[log_hop_cnt_offset..log_hop_cnt_offset + log_hop_cnt_sz],
+                )?;
+
                 let packed_log_var = pack_bits(
-                    cs.namespace(|| format!("log {batch_idx}-{log_idx}: packed log")),
+                    cs.namespace(|| format!("{idx_info}: packed log")),
                     &unpacked_bits,
                 )?;
 
+                // Keep track of raw logs to compute batch hash
                 batch_vars.push(packed_log_var);
 
-                // Extract hop count from bit decomposition
-                let (hop_cnt_offset, hop_cnt_sz) = LOG_OFFSETS.hop_cnt;
-                let hop_cnt_var = pack_bits(
-                    cs.namespace(|| format!("log {batch_idx}-{log_idx}: hop_cnt")),
-                    &unpacked_bits[hop_cnt_offset..hop_cnt_offset + hop_cnt_sz],
+                // ------ Enforce all merkle tree updates ------
+                // Process update: update old prev
+                let (
+                    _oldprev_index_bits_var,
+                    oldprev_old_unpacked_bits,
+                    _oldprev_old_packed_var,
+                    oldprev_new_packed_var,
+                    new_computed_root_var,
+                ) = update
+                    .old_prev_clog_update
+                    .merkle_tree_update_circuit::<HEIGHT, _>(
+                        cs.namespace(|| format!("{idx_info}: old_prev_clog_update")),
+                        cur_root,
+                    )?;
+                // Process update: update clog
+                let (
+                    clog_index_bits_var,
+                    clog_old_unpacked_bits,
+                    clog_old_packed_var,
+                    clog_new_packed_var,
+                    new_computed_root_var,
+                ) = update.clog_update.merkle_tree_update_circuit::<HEIGHT, _>(
+                    cs.namespace(|| format!("{idx_info}: clog_update")),
+                    new_computed_root_var,
+                )?;
+                // Process update: update new prev
+                let (
+                    _newprev_index_bits_var,
+                    newprev_old_unpacked_bits,
+                    _newprev_old_packed_var,
+                    newprev_new_packed_var,
+                    new_computed_root_var,
+                ) = update
+                    .new_prev_clog_update
+                    .merkle_tree_update_circuit::<HEIGHT, _>(
+                        cs.namespace(|| format!("{idx_info}: new_prev_clog_update")),
+                        new_computed_root_var,
+                    )?;
+                cur_root = new_computed_root_var;
+
+                // ------ Linked list constraints for old prev ------
+
+                // Extract old_prev.next
+                let oldprev_next_var = pack_bits(
+                    cs.namespace(|| format!("{idx_info}: packed old_prev.next")),
+                    &oldprev_old_unpacked_bits[next_idx_offset..next_idx_offset + next_idx_sz],
                 )?;
 
-                // Keep track of new/modified flows
-                let (old_leaf, new_clog) = match &batch.old_clogs[log_idx] {
-                    Some(clog) => {
-                        let mut new_clog = clog.clone();
-                        new_clog.hop_cnt += scalar_log.hop_cnt;
-                        (clog.to_leaf(), new_clog)
-                    }
-                    None => (
-                        vanilla_tree::tree::Leaf::default(),
-                        CompressedLog::from_idx_log(idx, &scalar_log),
-                    ),
-                };
-
-                let index_bits = idx_to_bits(HEIGHT, Scalar::from(idx as u64));
-
-                let index_bits_var = index_bits
-                    .clone()
-                    .into_iter()
-                    .enumerate()
-                    .map(|(j, b)| {
-                        AllocatedBit::alloc(
-                            cs.namespace(|| format!("log {batch_idx}-{log_idx}: index bit {j}")),
-                            Some(b),
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-
-                let siblings_var = batch.siblings[log_idx]
-                    .clone()
-                    .into_iter()
-                    .enumerate()
-                    .map(|(j, s)| {
-                        AllocatedNum::alloc(
-                            cs.namespace(|| format!("log {batch_idx}-{log_idx}: sibling {j}")),
-                            || Ok(s),
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-
-                // Extract old hop count from bit decomposition
-                let old_unpacked_bits: Vec<_> = field_into_allocated_bits_le(
-                    cs.namespace(|| {
-                        format!("log {batch_idx}-{log_idx}: old clog bit decomposition")
-                    }),
-                    Some(old_leaf.val[0]),
-                )?
-                .iter()
-                .map(|bit| Boolean::from(bit.clone()))
-                .collect();
-
-                let old_packed_clog_var = pack_bits(
-                    cs.namespace(|| format!("log {batch_idx}-{log_idx}: old packed clog")),
-                    &old_unpacked_bits,
+                // Extract clog index
+                let clog_idx_var = pack_bits(
+                    cs.namespace(|| format!("{idx_info}: clog index")),
+                    &clog_index_bits_var
+                        .clone()
+                        .into_iter()
+                        .rev()
+                        .map(Boolean::from)
+                        .collect::<Vec<_>>(),
                 )?;
 
-                let (hop_cnt_offset, hop_cnt_sz) = CLOG_OFFSETS.hop_cnt;
-                let old_hop_cnt_var = pack_bits(
-                    cs.namespace(|| format!("log {batch_idx}-{log_idx}: old clog hop_cnt")),
-                    &old_unpacked_bits[hop_cnt_offset..hop_cnt_offset + hop_cnt_sz],
-                )?;
-
-                // Verify membership of old compressed log
-                let old_computed_root_var = path_computed_root::<Scalar, HEIGHT, _>(
-                    &mut cs.namespace(|| format!("valid old {batch_idx}-{log_idx}")),
-                    vec![old_packed_clog_var.clone()],
-                    index_bits_var.clone(),
-                    siblings_var.clone(),
-                )?;
-                cs.enforce(
-                    || format!("log {batch_idx}-{log_idx}: current root == old computed root"),
-                    |lc| lc + cur_root.get_variable(),
-                    |lc| lc + CS::one(),
-                    |lc| lc + old_computed_root_var.get_variable(),
+                // If clog already exists, then oldprev.next == idx. Otherwise old_clog == zero_clog
+                enforce_checked(
+                    cs,
+                    format!("{idx_info}: verify oldprev points to old clog, or clog is new"),
+                    vec![Var::Plus(&oldprev_next_var), Var::Minus(&clog_idx_var)],
+                    vec![Var::Plus(&clog_old_packed_var)],
+                    vec![],
                 );
 
-                // Extract new hop count from bit decomposition
-                let new_unpacked_bits: Vec<_> = field_into_allocated_bits_le(
-                    cs.namespace(|| {
-                        format!("log {batch_idx}-{log_idx}: new clog bit decomposition")
-                    }),
-                    Some(new_clog.pack()),
-                )?
-                .iter()
-                .map(|bit| Boolean::from(bit.clone()))
-                .collect();
-
-                let (hop_cnt_offset, hop_cnt_sz) = CLOG_OFFSETS.hop_cnt;
-                let new_hop_cnt_bits =
-                    &new_unpacked_bits[hop_cnt_offset..hop_cnt_offset + hop_cnt_sz];
-                let new_hop_cnt_var = pack_bits(
-                    cs.namespace(|| format!("log {batch_idx}-{log_idx}: new clog hop_cnt")),
-                    new_hop_cnt_bits,
+                // Get bit decomposition of new next_idx
+                let new_clog_next_idx_bits: Vec<_> = allocated_n_bits_le(
+                    cs.namespace(|| "new next_idx bit decomposition"),
+                    update.clog_update.new_clog.next_idx,
+                    next_idx_sz,
                 )?;
-                let new_packed_clog_var = pack_bits(
-                    cs.namespace(|| format!("log {batch_idx}-{log_idx}: new packed clog")),
-                    &new_unpacked_bits,
+
+                let new_clog_next_idx_var = pack_bits(
+                    cs.namespace(|| format!("{idx_info}: new clog next_idx")),
+                    &new_clog_next_idx_bits
+                        .clone()
+                        .into_iter()
+                        .map(Boolean::from)
+                        .collect::<Vec<_>>(),
+                )?;
+
+                // Reconstruct oldprev, replacing next_idx with clog.next_idx
+                let mut recons_unpacked_bits = oldprev_old_unpacked_bits.clone();
+                recons_unpacked_bits[next_idx_offset..next_idx_offset + next_idx_sz]
+                    .clone_from_slice(
+                        &clog_old_unpacked_bits[next_idx_offset..next_idx_offset + next_idx_sz],
+                    );
+
+                let recons_packed_oldprev_var = pack_bits(
+                    cs.namespace(|| format!("{idx_info}: reconstructed packed oldprev")),
+                    &recons_unpacked_bits,
+                )?;
+
+                // If clog exists, then recons_oldprev == new_oldprev. Otherwise old_clog == zero_clog
+                enforce_checked(
+                    cs,
+                    format!("{idx_info}: reconstructed oldprev == new oldprev, or clog is new"),
+                    vec![
+                        Var::Plus(&recons_packed_oldprev_var),
+                        Var::Minus(&oldprev_new_packed_var),
+                    ],
+                    vec![Var::Plus(&clog_old_packed_var)],
+                    vec![],
+                );
+
+                // ------ Constraints on clog update ------
+
+                // Extract old hop count from bit decomposition. If clog is new, this will be 0
+                let old_hop_cnt_var = pack_bits(
+                    cs.namespace(|| format!("{idx_info}: old clog hop_cnt")),
+                    &clog_old_unpacked_bits[hop_cnt_offset..hop_cnt_offset + hop_cnt_sz],
+                )?;
+
+                // Get bit decomposition of new clog hop count
+                let new_clog_hop_cnt = update.clog_update.new_clog.hop_cnt;
+                let new_clog_hop_cnt_bits: Vec<_> = allocated_n_bits_le(
+                    cs.namespace(|| "new hop_cnt bit decomposition"),
+                    new_clog_hop_cnt,
+                    hop_cnt_sz,
+                )?
+                .into_iter()
+                .map(Boolean::from)
+                .collect();
+                let new_hop_cnt_var = pack_bits(
+                    cs.namespace(|| format!("{idx_info}: new clog hop_cnt")),
+                    &new_clog_hop_cnt_bits,
                 )?;
 
                 // Verify that new hop count is related to the old hop count
-                cs.enforce(
-                    || format!("log {batch_idx}-{log_idx}: enforce new hop_cnt == old hop_cnt + hop_cnt"),
-                    |lc| lc + old_hop_cnt_var.get_variable() + hop_cnt_var.get_variable(),
-                    |lc| lc + CS::one(),
-                    |lc| lc + new_hop_cnt_var.get_variable(),
+                enforce_checked(
+                    cs,
+                    format!("{idx_info}: enforce new hop_cnt == old hop_cnt + hop_cnt"),
+                    vec![Var::Plus(&old_hop_cnt_var), Var::Plus(&hop_cnt_var)],
+                    vec![Var::PlusOne],
+                    vec![Var::Plus(&new_hop_cnt_var)],
                 );
 
-                // Reconstruct new leaf by updating hop_cnt of old leaf
-                let mut recons_unpacked_bits = old_unpacked_bits.clone();
+                // Reconstruct new leaf by updating hop_cnt and next_idx
+                let mut recons_unpacked_bits = clog_old_unpacked_bits.clone();
                 recons_unpacked_bits[hop_cnt_offset..hop_cnt_offset + hop_cnt_sz]
-                    .clone_from_slice(new_hop_cnt_bits);
+                    .clone_from_slice(&new_clog_hop_cnt_bits);
+                recons_unpacked_bits[next_idx_offset..next_idx_offset + next_idx_sz]
+                    .clone_from_slice(
+                        &new_clog_next_idx_bits
+                            .clone()
+                            .into_iter()
+                            .map(Boolean::from)
+                            .collect::<Vec<_>>(),
+                    );
 
                 let recons_packed_clog_var = pack_bits(
-                    cs.namespace(|| {
-                        format!("log {batch_idx}-{log_idx}: reconstructed packed clog")
-                    }),
+                    cs.namespace(|| format!("{idx_info}: reconstructed packed clog")),
                     &recons_unpacked_bits,
                 )?;
 
                 // Clog is updated, in which case it should equal the reconstructed Clog, or it's
                 // new, in which case the old packed Clog should be 0 (default leaf value)
-                cs.enforce(
-                    || format!("log {batch_idx}-{log_idx}: leaf is updated or new"),
-                    |lc| {
-                        lc + new_packed_clog_var.get_variable()
-                            - recons_packed_clog_var.get_variable()
-                    },
-                    |lc| lc + old_packed_clog_var.get_variable(),
-                    |lc| lc,
+                enforce_checked(
+                    cs,
+                    format!("{idx_info}: leaf is updated or new"),
+                    vec![
+                        Var::Plus(&clog_new_packed_var),
+                        Var::Minus(&recons_packed_clog_var),
+                    ],
+                    vec![Var::Plus(&clog_old_packed_var)],
+                    vec![],
                 );
 
-                // Compute root for new compressed log
-                let new_computed_root_var = path_computed_root::<Scalar, HEIGHT, _>(
-                    &mut cs.namespace(|| format!("log {batch_idx}-{log_idx}: new computed root")),
-                    vec![new_packed_clog_var],
-                    index_bits_var.clone(),
-                    siblings_var.clone(),
+                // ------ Linked list constraints for new prev ------
+
+                // Extract new_prev.next
+                let newprev_next_var = pack_bits(
+                    cs.namespace(|| format!("{idx_info}: packed new_prev.next")),
+                    &newprev_old_unpacked_bits[next_idx_offset..next_idx_offset + next_idx_sz],
                 )?;
-                // Update current root
-                cur_root = new_computed_root_var.clone();
+
+                // New clog.next_idx should equal old new_prev.next
+                enforce_checked(
+                    cs,
+                    format!("{idx_info}: new clog.next_idx == old new_prev.next"),
+                    vec![Var::Plus(&new_clog_next_idx_var)],
+                    vec![Var::PlusOne],
+                    vec![Var::Plus(&newprev_next_var)],
+                );
+
+                // Reconstruct newprev, replacing next_idx with new clog idx
+                let mut clog_index_bits_padded: Vec<_> = clog_index_bits_var
+                    .into_iter()
+                    .rev()
+                    .map(Boolean::from)
+                    .collect();
+                clog_index_bits_padded.resize(next_idx_sz, Boolean::Constant(false));
+                let mut recons_unpacked_bits = newprev_old_unpacked_bits.clone();
+                recons_unpacked_bits[next_idx_offset..next_idx_offset + next_idx_sz]
+                    .clone_from_slice(&clog_index_bits_padded);
+
+                let recons_packed_newprev_var = pack_bits(
+                    cs.namespace(|| format!("{idx_info}: reconstructed packed newprev")),
+                    &recons_unpacked_bits,
+                )?;
+
+                // Reconstructed newprev should equal new newprev, or in the case of a no-op, we
+                // check that the new newprev is 0
+                enforce_checked(
+                    cs,
+                    format!("{idx_info}: reconstructed newprev == new newprev OR new newprev == 0"),
+                    vec![
+                        Var::Plus(&recons_packed_newprev_var),
+                        Var::Minus(&newprev_new_packed_var),
+                    ],
+                    vec![Var::Plus(&newprev_new_packed_var)],
+                    vec![],
+                );
+
+                // ------ Constraints on priority ordering ------
+
+                // Extract new prev priority
+                let new_prev_priority_var = pack_bits(
+                    cs.namespace(|| format!("{idx_info}: prev priority")),
+                    &newprev_old_unpacked_bits[hop_cnt_offset..hop_cnt_offset + hop_cnt_sz],
+                )?;
+
+                // Extract cur priority
+                let clog_priority_var = new_hop_cnt_var.clone();
+
+                // Check that clog_priority - new_prev_priority >= 0
+                let priority_diff_bits: Vec<_> = allocated_n_bits_le(
+                    cs.namespace(|| format!("{idx_info}: diff 1")),
+                    new_clog_hop_cnt - update.new_prev_clog_update.old_clog.hop_cnt,
+                    ENTRY_SIZE,
+                )?
+                .into_iter()
+                .map(Boolean::from)
+                .collect();
+                let priority_diff_var = pack_bits(
+                    cs.namespace(|| format!("{idx_info}: packed diff 1")),
+                    &priority_diff_bits,
+                )?;
+
+                enforce_checked(
+                    cs,
+                    format!("{idx_info}: new_prev_priority + priority_diff = clog_priority"),
+                    vec![
+                        Var::Plus(&new_prev_priority_var),
+                        Var::Plus(&priority_diff_var),
+                    ],
+                    vec![Var::PlusOne],
+                    vec![Var::Plus(&clog_priority_var)],
+                );
+
+                // Verify that next clog exists at location specified by clog.next_idx
+                let next_siblings_var = update
+                    .new_next_clog_info
+                    .siblings
+                    .clone()
+                    .into_iter()
+                    .enumerate()
+                    .map(|(j, s)| {
+                        AllocatedNum::alloc(
+                            cs.namespace(|| format!("{idx_info}: next sibling {j}")),
+                            || Ok(s),
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                // Compute root for next clog
+                let next_unpacked_bits: Vec<_> = field_into_allocated_bits_le(
+                    cs.namespace(|| format!("{idx_info}: next clog bit decomposition")),
+                    Some(update.new_next_clog_info.clog.pack()),
+                )?
+                .into_iter()
+                .map(Boolean::from)
+                .collect();
+                let next_packed_clog_var = pack_bits(
+                    cs.namespace(|| format!("{idx_info}: next packed clog")),
+                    &next_unpacked_bits,
+                )?;
+
+                let computed_root_var = path_computed_root::<Scalar, HEIGHT, _>(
+                    &mut cs.namespace(|| format!("{idx_info}: next computed root")),
+                    vec![next_packed_clog_var.clone()],
+                    new_clog_next_idx_bits
+                        .into_iter()
+                        .take(HEIGHT)
+                        .rev()
+                        .collect::<Vec<_>>(),
+                    next_siblings_var.clone(),
+                )?;
+
+                enforce_checked(
+                    cs,
+                    format!("{idx_info}: Verify next clog membership OR next_idx == 0"),
+                    vec![Var::Plus(&cur_root), Var::Minus(&computed_root_var)],
+                    vec![Var::Plus(&new_clog_next_idx_var)],
+                    vec![],
+                );
+
+                // Get next clog priority
+                let next_priority_var = pack_bits(
+                    cs.namespace(|| format!("{idx_info}: next priority")),
+                    &next_unpacked_bits[hop_cnt_offset..hop_cnt_offset + hop_cnt_sz],
+                )?;
+
+                // Check that next_priority - clog_priority >= 0, or clog next_idx is 0
+                let priority_diff_bits: Vec<_> = allocated_n_bits_le(
+                    cs.namespace(|| format!("{idx_info}: diff 2")),
+                    update.new_next_clog_info.clog.hop_cnt - new_clog_hop_cnt,
+                    ENTRY_SIZE,
+                )?
+                .into_iter()
+                .map(Boolean::from)
+                .collect();
+                let priority_diff_var = pack_bits(
+                    cs.namespace(|| format!("{idx_info}: packed diff 2")),
+                    &priority_diff_bits,
+                )?;
+
+                enforce_checked(
+                    cs,
+                    format!(
+                        "{idx_info}: clog_priority + priority_diff = next_priority OR next_idx == 0"
+                    ),
+                    vec![
+                        Var::Plus(&clog_priority_var),
+                        Var::Plus(&priority_diff_var),
+                        Var::Minus(&next_priority_var),
+                    ],
+                    vec![Var::Plus(&new_clog_next_idx_var)],
+                    vec![],
+                );
             }
 
             // Compute hash for this batch of logs
@@ -859,11 +1440,12 @@ impl<
             Ok(self.step_count + Scalar::ONE)
         })?;
 
-        cs.enforce(
-            || format!("enforce new step count == old step count + 1"),
-            |lc| lc + step_count.get_variable() + CS::one(),
-            |lc| lc + CS::one(),
-            |lc| lc + new_step_count.get_variable(),
+        enforce_checked(
+            cs,
+            format!("enforce new step count == old step count + 1"),
+            vec![Var::Plus(&step_count), Var::PlusOne],
+            vec![Var::PlusOne],
+            vec![Var::Plus(&new_step_count)],
         );
 
         Ok(vec![

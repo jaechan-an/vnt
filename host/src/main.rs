@@ -256,6 +256,7 @@ async fn main() -> Result<(), Error> {
 
     // Build input: old compressed logs
     // This is the same as old_clogs_map but we convert Clog to ZKCLog
+    // next_idx is 0 for now, will be filled in during circuit creation
     let old_compressed_logs: HashMap<u32, ZKClog> = old_clogs_map
         .clone()
         .into_iter()
@@ -270,6 +271,7 @@ async fn main() -> Result<(), Error> {
                     dst: Scalar::from(clog.dst as u64),
                     packet_size: Scalar::from(clog.packet_size as u64),
                     hop_cnt: Scalar::from(clog.hop_cnt as u64),
+                    next_idx: Scalar::ZERO,
                 },
             )
         })
@@ -277,7 +279,6 @@ async fn main() -> Result<(), Error> {
 
     // Build input: new raw logs
 
-    // TODO: empty log should have some special handling
     const EMPTY_LOG: ZKLog = ZKLog {
         id: 0,
         flow_id: 0,

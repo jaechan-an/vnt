@@ -20,6 +20,8 @@ else
   RELEASE=""
 fi
 
+set -e
+
 for NUM_RECORDS in "${NUM_RECORDS_ARRAY[@]}"; do
   echo "Running simulation with ${NUM_TABLES} tables and ${NUM_RECORDS} records..."
 

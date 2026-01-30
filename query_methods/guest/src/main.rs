@@ -1,5 +1,5 @@
 use risc0_zkvm::{guest::env, sha::Digest as RiscDigest};
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 
 use core::{util, QueryJournal, QueryPrivateInput};
 use zk::{CompressedLog as ZKClog, Leaf, U1, U2};
@@ -9,9 +9,17 @@ fn main() {
     // Step 1: Read and deserialize inputs.
     let read_input_start = env::cycle_count();
     let input: QueryPrivateInput = env::read();
-    let QueryPrivateInput { ref clogs, cur_root, src, dst } = input;
+    let QueryPrivateInput {
+        ref clogs,
+        cur_root,
+        src,
+        dst,
+    } = input;
     let read_input_end = env::cycle_count();
-    eprintln!("read input took: {} cycles", read_input_end - read_input_start);
+    eprintln!(
+        "read input took: {} cycles",
+        read_input_end - read_input_start
+    );
 
     // Step 2: Compute SHA256 hash over clogs using accelerated precompile
     let hash_start = env::cycle_count();

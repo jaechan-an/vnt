@@ -288,7 +288,7 @@ pub struct QueryPrivateInput {
 
     /// Source for the query.
     pub src: i32,
-    
+
     /// Destination for the query.
     pub dst: i32,
 }

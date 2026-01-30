@@ -21,7 +21,7 @@ use nova_snark::{
 
 use core::{
     log, merkle::MerkleTree as CLogMerkleTree, postgres::Postgres, util, AggregationJournal, CLog,
-    QueryJournal, QueryPrivateInput, NovaAggregationProof,
+    NovaAggregationProof, QueryJournal, QueryPrivateInput,
 };
 use zk;
 mod db;
@@ -38,11 +38,8 @@ type S2 = nova_snark::spartan::snark::RelaxedR1CSSNARK<E2, EE2>;
 type Scalar = <<E1 as Engine>::GE as Group>::Scalar;
 type C = zk::AggregationCircuit<Scalar, u32, HEIGHT, BATCH_SIZE>;
 type CompSNARK = CompressedSNARK<E1, E2, C, S1, S2>;
-type AggregationProof = NovaAggregationProof<
-    <Scalar as PrimeField>::Repr,
-    CompSNARK,
-    VerifierKey<E1, E2, C, S1, S2>,
->;
+type AggregationProof =
+    NovaAggregationProof<<Scalar as PrimeField>::Repr, CompSNARK, VerifierKey<E1, E2, C, S1, S2>>;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -190,10 +187,10 @@ async fn main() -> Result<(), Error> {
 
     // Step 3. Pass the Merkle tree to the guest program.
     let input = QueryPrivateInput {
-        clogs: clogs,                     // Aggregated logs: Vec<CLog>
+        clogs: clogs,                                         // Aggregated logs: Vec<CLog>
         cur_root: pub_cur_root.to_repr().try_into().unwrap(), // Aggregation Merkle root: Vec<u8>
-        src: src as i32,                  // Source for query
-        dst: dst as i32,                  // Destination for query
+        src: src as i32,                                      // Source for query
+        dst: dst as i32,                                      // Destination for query
     };
 
     let env = ExecutorEnv::builder()
@@ -203,7 +200,7 @@ async fn main() -> Result<(), Error> {
         .unwrap();
 
     let prover = default_prover();
-    // TODO: Experiment with different proving options. 
+    // TODO: Experiment with different proving options.
     // succinct() and composite() are the other options.
     // I expect they will be faster.
     let opts = ProverOpts::composite();
