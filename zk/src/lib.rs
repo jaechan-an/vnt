@@ -245,6 +245,7 @@ const LOG_OFFSETS: Log<(usize, usize)> = Log {
     packet_size: (ENTRY_SIZE * 5, ENTRY_SIZE),
     hop_cnt: (ENTRY_SIZE * 6, ENTRY_SIZE),
 };
+const N_LOG_BITS: usize = ENTRY_SIZE * 7;
 
 impl<T> Log<T> {
     fn fields(&self) -> Vec<&T> {
@@ -1066,7 +1067,7 @@ impl<
                 let unpacked_bits: Vec<_> = allocated_n_bits_le(
                     cs.namespace(|| format!("{idx_info}: bit decomposition")),
                     update.raw_log.to_scalar_log().pack(),
-                    N_CLOG_BITS,
+                    N_LOG_BITS,
                 )?
                 .iter()
                 .map(|bit| Boolean::from(bit.clone()))
