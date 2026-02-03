@@ -2,10 +2,7 @@
 use ff::{PrimeField, PrimeFieldBits};
 use nova_snark::frontend::{
     AllocatedBit, Boolean, ConstraintSystem, Elt, PoseidonConstants, SpongeCircuit, SynthesisError,
-    gadgets::{
-        boolean::field_into_allocated_bits_le,
-        poseidon::{IOPattern, Simplex, Sponge, SpongeAPI, SpongeOp, SpongeTrait, Strength},
-    },
+    gadgets::poseidon::{IOPattern, Simplex, Sponge, SpongeAPI, SpongeOp, SpongeTrait, Strength},
     num::{AllocatedNum, Num},
 };
 use nova_snark::traits::circuit::StepCircuit;
@@ -412,6 +409,7 @@ const CLOG_OFFSETS: CompressedLog<(usize, usize)> = CompressedLog {
     hop_cnt: (ENTRY_SIZE * 5, ENTRY_SIZE),
     next_idx: (ENTRY_SIZE * 6, ENTRY_SIZE),
 };
+const N_CLOG_BITS: usize = ENTRY_SIZE * 7;
 
 impl<T> CompressedLog<T> {
     fn fields(&self) -> Vec<&T> {
@@ -684,9 +682,10 @@ impl<Scalar: PrimeField + PrimeFieldBits> ClogUpdate<Scalar> {
             .collect::<Result<Vec<_>, _>>()?;
 
         // Compute root for old_clog
-        let old_unpacked_bits: Vec<_> = field_into_allocated_bits_le(
+        let old_unpacked_bits: Vec<_> = allocated_n_bits_le(
             cs.namespace(|| "old clog bit decomposition"),
-            Some(self.old_clog.pack()),
+            self.old_clog.pack(),
+            N_CLOG_BITS,
         )?
         .iter()
         .map(|bit| Boolean::from(bit.clone()))
@@ -1026,17 +1025,18 @@ impl<
         );
 
         // Make sure step_count < 2^128
-        let unpacked_step_bits: Vec<_> = field_into_allocated_bits_le(
+        let unpacked_step_bits: Vec<_> = allocated_n_bits_le(
             cs.namespace(|| format!("step count bit decomposition")),
-            Some(self.step_count),
+            self.step_count,
+            128,
         )?
-        .iter()
-        .map(|bit| Boolean::from(bit.clone()))
+        .into_iter()
+        .map(Boolean::from)
         .collect();
 
         let packed_step_var = pack_bits(
             cs.namespace(|| format!("step count packed, 128 bits")),
-            &unpacked_step_bits[..128],
+            &unpacked_step_bits,
         )?;
 
         enforce_checked(
@@ -1063,9 +1063,10 @@ impl<
                 let (log_hop_cnt_offset, log_hop_cnt_sz) = LOG_OFFSETS.hop_cnt;
 
                 // Extract raw log hop count from bit decomposition
-                let unpacked_bits: Vec<_> = field_into_allocated_bits_le(
+                let unpacked_bits: Vec<_> = allocated_n_bits_le(
                     cs.namespace(|| format!("{idx_info}: bit decomposition")),
-                    Some(update.raw_log.to_scalar_log().pack()),
+                    update.raw_log.to_scalar_log().pack(),
+                    N_CLOG_BITS,
                 )?
                 .iter()
                 .map(|bit| Boolean::from(bit.clone()))
@@ -1353,9 +1354,10 @@ impl<
                     .collect::<Result<Vec<_>, _>>()?;
 
                 // Compute root for next clog
-                let next_unpacked_bits: Vec<_> = field_into_allocated_bits_le(
+                let next_unpacked_bits: Vec<_> = allocated_n_bits_le(
                     cs.namespace(|| format!("{idx_info}: next clog bit decomposition")),
-                    Some(update.new_next_clog_info.clog.pack()),
+                    update.new_next_clog_info.clog.pack(),
+                    N_CLOG_BITS,
                 )?
                 .into_iter()
                 .map(Boolean::from)

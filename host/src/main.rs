@@ -335,6 +335,11 @@ async fn main() -> Result<(), Error> {
     let pp_ms = t0.elapsed().as_millis();
     info!(elapsed_ms = pp_ms, "public_params");
 
+    let (primary_vars, secondary_vars) = pp.num_variables();
+    info!(
+        "Circuit variables: primary={}, secondary={}",
+        primary_vars, secondary_vars
+    );
     let (primary_constraints, secondary_constraints) = pp.num_constraints();
     info!(
         "Circuit constraints: primary={}, secondary={}",
