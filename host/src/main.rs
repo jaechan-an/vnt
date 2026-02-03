@@ -335,6 +335,12 @@ async fn main() -> Result<(), Error> {
     let pp_ms = t0.elapsed().as_millis();
     info!(elapsed_ms = pp_ms, "public_params");
 
+    let (primary_constraints, secondary_constraints) = pp.num_constraints();
+    info!(
+        "Circuit constraints: primary={}, secondary={}",
+        primary_constraints, secondary_constraints
+    );
+
     let initial_state = &[pub_prev_root, pub_prev_root, Scalar::ZERO, Scalar::ZERO];
 
     let n_steps = circuits.len();

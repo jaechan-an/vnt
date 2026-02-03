@@ -366,7 +366,7 @@ pub fn update_clogs<
 
     // Get next clog info
     let new_next_clog_info =
-        ClogPath::verify(tree, compressed_logs.get(&next_flow_id).unwrap().clone());
+        ClogPath::check_membership(tree, compressed_logs.get(&next_flow_id).unwrap().clone());
 
     Update {
         raw_log: raw_log.clone(),
@@ -586,7 +586,7 @@ impl<Scalar: PrimeField + PrimeFieldBits> ClogPath<Scalar> {
         }
     }
 
-    pub fn verify<const HEIGHT: usize>(
+    pub fn check_membership<const HEIGHT: usize>(
         tree: &MerkleTree<Scalar, HEIGHT, U1, U2>,
         clog: CompressedLog<Scalar>,
     ) -> Self {
