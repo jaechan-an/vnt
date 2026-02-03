@@ -271,7 +271,6 @@ async fn main() -> Result<(), Error> {
                     dst: Scalar::from(clog.dst as u64),
                     packet_size: Scalar::from(clog.packet_size as u64),
                     hop_cnt: Scalar::from(clog.hop_cnt as u64),
-                    next_idx: Scalar::ZERO,
                 },
             )
         })

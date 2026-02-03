@@ -335,7 +335,6 @@ pub struct CompressedLog<Scalar> {
     pub dst: Scalar,
     pub packet_size: Scalar,
     pub hop_cnt: Scalar,
-    pub next_idx: Scalar,
 }
 
 const CLOG_OFFSETS: CompressedLog<(usize, usize)> = CompressedLog {
@@ -347,9 +346,8 @@ const CLOG_OFFSETS: CompressedLog<(usize, usize)> = CompressedLog {
     dst: (ENTRY_SIZE * 3, ENTRY_SIZE),
     packet_size: (ENTRY_SIZE * 4, ENTRY_SIZE),
     hop_cnt: (ENTRY_SIZE * 5, ENTRY_SIZE),
-    next_idx: (ENTRY_SIZE * 6, ENTRY_SIZE),
 };
-const N_CLOG_BITS: usize = ENTRY_SIZE * 7;
+const N_CLOG_BITS: usize = ENTRY_SIZE * 6;
 
 impl<T> CompressedLog<T> {
     fn fields(&self) -> Vec<&T> {
@@ -361,7 +359,6 @@ impl<T> CompressedLog<T> {
             &self.dst,
             &self.packet_size,
             &self.hop_cnt,
-            &self.next_idx,
         ]
     }
 }
@@ -383,7 +380,6 @@ impl<Scalar: PrimeField + PrimeFieldBits> CompressedLog<Scalar> {
             dst: log.dst,
             packet_size: log.packet_size,
             hop_cnt: log.hop_cnt,
-            next_idx: Scalar::ZERO,
         }
     }
 
@@ -406,7 +402,6 @@ impl<Scalar: PrimeField + PrimeFieldBits> CompressedLog<Scalar> {
             dst: self.dst.to_repr(),
             packet_size: self.packet_size.to_repr(),
             hop_cnt: self.hop_cnt.to_repr(),
-            next_idx: self.next_idx.to_repr(),
         }
     }
 
@@ -419,7 +414,6 @@ impl<Scalar: PrimeField + PrimeFieldBits> CompressedLog<Scalar> {
             dst: Scalar::from_repr(repr.dst).unwrap(),
             packet_size: Scalar::from_repr(repr.packet_size).unwrap(),
             hop_cnt: Scalar::from_repr(repr.hop_cnt).unwrap(),
-            next_idx: Scalar::from_repr(repr.next_idx).unwrap(),
         }
     }
 
@@ -432,7 +426,6 @@ impl<Scalar: PrimeField + PrimeFieldBits> CompressedLog<Scalar> {
             dst: Scalar::ZERO,
             packet_size: Scalar::ZERO,
             hop_cnt: Scalar::ZERO,
-            next_idx: Scalar::ZERO,
         }
     }
 }
@@ -498,7 +491,6 @@ impl<Scalar: PrimeField + PrimeFieldBits> ClogPath<Scalar> {
             dst: Scalar::ZERO,
             packet_size: Scalar::ZERO,
             hop_cnt: Scalar::ZERO,
-            next_idx: Scalar::ZERO,
         };
         let idx_bits = idx_to_bits(HEIGHT, Scalar::from(last_idx as u64));
         let siblings_path = tree.get_siblings_path(idx_bits);
@@ -543,7 +535,6 @@ impl<Scalar: PrimeField + PrimeFieldBits> ClogUpdate<Scalar> {
             dst: Scalar::ZERO,
             packet_size: Scalar::ZERO,
             hop_cnt: Scalar::ZERO,
-            next_idx: Scalar::ZERO,
         };
         let idx_bits = idx_to_bits(HEIGHT, Scalar::from(last_idx as u64));
         let siblings_path = tree.get_siblings_path(idx_bits);
@@ -718,7 +709,6 @@ impl<
             dst: Scalar::ZERO,
             packet_size: Scalar::ZERO,
             hop_cnt: Scalar::ZERO,
-            next_idx: Scalar::ZERO,
         };
 
         // Create vector of leaves
