@@ -1,11 +1,17 @@
 #![allow(non_snake_case)]
 use ff::{PrimeField, PrimeFieldBits};
-use nova_snark::frontend::{
-    AllocatedBit, Boolean, ConstraintSystem, Elt, PoseidonConstants, SpongeCircuit, SynthesisError,
-    gadgets::poseidon::{IOPattern, Simplex, Sponge, SpongeAPI, SpongeOp, SpongeTrait, Strength},
-    num::{AllocatedNum, Num},
-};
 use nova_snark::traits::circuit::StepCircuit;
+use nova_snark::{
+    frontend::{
+        AllocatedBit, Boolean, ConstraintSystem, Elt, PoseidonConstants, SpongeCircuit,
+        SynthesisError,
+        gadgets::poseidon::{
+            IOPattern, Simplex, Sponge, SpongeAPI, SpongeOp, SpongeTrait, Strength,
+        },
+        num::{AllocatedNum, Num},
+    },
+    gadgets::utils::le_bits_to_num,
+};
 use std::marker::PhantomData;
 
 pub use generic_array::typenum::{U1, U2};
@@ -474,49 +480,6 @@ fn tree_str<Scalar: PrimeField + PrimeFieldBits, const N: usize>(
 }
 
 #[derive(Clone, Debug)]
-pub struct ClogPath<Scalar: PrimeField + PrimeFieldBits> {
-    pub idx: usize,                  // Index in merkle tree
-    pub siblings: Vec<Scalar>,       // Siblings that verify clog
-    pub clog: CompressedLog<Scalar>, // Old compressed log
-}
-
-impl<Scalar: PrimeField + PrimeFieldBits> ClogPath<Scalar> {
-    pub fn noop<const HEIGHT: usize>(tree: &MerkleTree<Scalar, HEIGHT, U1, U2>) -> Self {
-        let last_idx = (1 << HEIGHT) - 1;
-        let zero_clog = CompressedLog {
-            merkle_idx: last_idx,
-            id: Scalar::ZERO,
-            flow_id: Scalar::ZERO,
-            src: Scalar::ZERO,
-            dst: Scalar::ZERO,
-            packet_size: Scalar::ZERO,
-            hop_cnt: Scalar::ZERO,
-        };
-        let idx_bits = idx_to_bits(HEIGHT, Scalar::from(last_idx as u64));
-        let siblings_path = tree.get_siblings_path(idx_bits);
-        ClogPath {
-            idx: last_idx,
-            siblings: siblings_path.siblings,
-            clog: zero_clog.clone(),
-        }
-    }
-
-    pub fn check_membership<const HEIGHT: usize>(
-        tree: &MerkleTree<Scalar, HEIGHT, U1, U2>,
-        clog: CompressedLog<Scalar>,
-    ) -> Self {
-        let idx = clog.merkle_idx;
-        let idx_bits = idx_to_bits(HEIGHT, Scalar::from(idx as u64));
-        let siblings_path = tree.get_siblings_path(idx_bits.clone());
-        ClogPath {
-            idx,
-            siblings: siblings_path.siblings,
-            clog,
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
 pub struct ClogUpdate<Scalar: PrimeField + PrimeFieldBits> {
     pub idx: usize,                      // Index in merkle tree
     pub siblings: Vec<Scalar>,           // Siblings that verify clog
@@ -572,7 +535,7 @@ impl<Scalar: PrimeField + PrimeFieldBits> ClogUpdate<Scalar> {
     ) -> Result<
         (
             Vec<AllocatedBit>,
-            Vec<Boolean>,
+            Vec<AllocatedBit>,
             AllocatedNum<Scalar>,
             AllocatedNum<Scalar>,
             AllocatedNum<Scalar>,
@@ -602,12 +565,9 @@ impl<Scalar: PrimeField + PrimeFieldBits> ClogUpdate<Scalar> {
             cs.namespace(|| "old clog bit decomposition"),
             self.old_clog.pack(),
             N_CLOG_BITS,
-        )?
-        .iter()
-        .map(|bit| Boolean::from(bit.clone()))
-        .collect();
+        )?;
         let old_packed_clog_var =
-            pack_bits(cs.namespace(|| "old packed clog"), &old_unpacked_bits)?;
+            le_bits_to_num(cs.namespace(|| "old packed clog"), &old_unpacked_bits)?;
 
         let old_computed_root_var = path_computed_root::<Scalar, HEIGHT, _>(
             &mut cs.namespace(|| "valid old"),
@@ -700,7 +660,7 @@ impl<
         );
 
         // Build prev_tree from old compressed logs
-        // Index 0 is reserved for linked list head
+        // Index 0 is reserved
         let zero_clog = CompressedLog {
             merkle_idx: 0,
             id: Scalar::ZERO,
@@ -921,12 +881,9 @@ impl<
             cs.namespace(|| format!("step count bit decomposition")),
             self.step_count,
             128,
-        )?
-        .into_iter()
-        .map(Boolean::from)
-        .collect();
+        )?;
 
-        let packed_step_var = pack_bits(
+        let packed_step_var = le_bits_to_num(
             cs.namespace(|| format!("step count packed, 128 bits")),
             &unpacked_step_bits,
         )?;
@@ -958,17 +915,14 @@ impl<
                     cs.namespace(|| format!("{idx_info}: bit decomposition")),
                     update.raw_log.to_scalar_log().pack(),
                     N_LOG_BITS,
-                )?
-                .iter()
-                .map(|bit| Boolean::from(bit.clone()))
-                .collect();
+                )?;
 
-                let hop_cnt_var = pack_bits(
+                let hop_cnt_var = le_bits_to_num(
                     cs.namespace(|| format!("{idx_info}: hop_cnt")),
                     &unpacked_bits[log_hop_cnt_offset..log_hop_cnt_offset + log_hop_cnt_sz],
                 )?;
 
-                let packed_log_var = pack_bits(
+                let packed_log_var = le_bits_to_num(
                     cs.namespace(|| format!("{idx_info}: packed log")),
                     &unpacked_bits,
                 )?;
@@ -993,7 +947,7 @@ impl<
                 // ------ Constraints on clog update ------
 
                 // Extract old hop count from bit decomposition. If clog is new, this will be 0
-                let old_hop_cnt_var = pack_bits(
+                let old_hop_cnt_var = le_bits_to_num(
                     cs.namespace(|| format!("{idx_info}: old clog hop_cnt")),
                     &clog_old_unpacked_bits[hop_cnt_offset..hop_cnt_offset + hop_cnt_sz],
                 )?;
@@ -1004,11 +958,8 @@ impl<
                     cs.namespace(|| "new hop_cnt bit decomposition"),
                     new_clog_hop_cnt,
                     hop_cnt_sz,
-                )?
-                .into_iter()
-                .map(Boolean::from)
-                .collect();
-                let new_hop_cnt_var = pack_bits(
+                )?;
+                let new_hop_cnt_var = le_bits_to_num(
                     cs.namespace(|| format!("{idx_info}: new clog hop_cnt")),
                     &new_clog_hop_cnt_bits,
                 )?;
@@ -1027,7 +978,7 @@ impl<
                 recons_unpacked_bits[hop_cnt_offset..hop_cnt_offset + hop_cnt_sz]
                     .clone_from_slice(&new_clog_hop_cnt_bits);
 
-                let recons_packed_clog_var = pack_bits(
+                let recons_packed_clog_var = le_bits_to_num(
                     cs.namespace(|| format!("{idx_info}: reconstructed packed clog")),
                     &recons_unpacked_bits,
                 )?;
