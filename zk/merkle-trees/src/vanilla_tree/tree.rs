@@ -17,7 +17,7 @@ pub struct Leaf<F: PrimeField + PrimeFieldBits, A: Arity<F>> {
 impl<F: PrimeField + PrimeFieldBits, A: Arity<F>> Default for Leaf<F, A> {
     fn default() -> Self {
         Self {
-            val: vec![F::ZERO],
+            val: vec![F::ZERO, F::ZERO],
             _arity: PhantomData,
         }
     }

@@ -120,10 +120,10 @@ pub async fn get_clogs(client: &Client) -> Vec<CLog> {
 }
 
 pub async fn update_aggregate_clog(client: &Client, clog: &CLog) -> i32 {
-    let query = "UPDATE clogs SET hop_cnt = clogs.hop_cnt + $1 WHERE flow_id = $2 RETURNING id";
+    let query = "UPDATE clogs SET hash_chain = $1 WHERE user_id = $2 RETURNING id";
 
     let rows = client
-        .query_one(query, &[&clog.hop_cnt, &clog.flow_id])
+        .query_one(query, &[&clog.hash_chain, &clog.user_id])
         .await
         .expect("UPDATE error in clog");
 
@@ -132,20 +132,11 @@ pub async fn update_aggregate_clog(client: &Client, clog: &CLog) -> i32 {
 }
 
 pub async fn insert_clog(client: &Client, clog: &CLog) -> i32 {
-    let query = "INSERT INTO clogs (flow_id, src, dst, packet_size, hop_cnt)
-        VALUES ($1, $2, $3, $4, $5) RETURNING id";
+    let query = "INSERT INTO clogs (user_id, hash_chain)
+        VALUES ($1, $2) RETURNING id";
 
     let row = client
-        .query_one(
-            query,
-            &[
-                &clog.flow_id,
-                &clog.src,
-                &clog.dst,
-                &clog.packet_size,
-                &clog.hop_cnt,
-            ],
-        )
+        .query_one(query, &[&clog.user_id, &clog.hash_chain])
         .await
         .expect("INSERT error in clog");
 
@@ -172,11 +163,8 @@ pub async fn get_hash(client: &Client, node_id: i32, round: i32) -> [u8; 32] {
 // TODO: move to core module
 fn row_to_clog(row: &Row) -> CLog {
     let id: i32 = row.get("id");
-    let flow_id: i32 = row.get("flow_id");
-    let src: i32 = row.get("src");
-    let dst: i32 = row.get("dst");
-    let packet_size: i32 = row.get("packet_size");
-    let hop_cnt: i32 = row.get("hop_cnt");
+    let user_id: i32 = row.get("user_id");
+    let hash_chain: Vec<u8> = row.get("hash_chain");
 
-    CLog::new(id, flow_id, src, dst, packet_size, hop_cnt)
+    CLog::new(id, user_id, hash_chain)
 }

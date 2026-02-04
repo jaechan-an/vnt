@@ -13,6 +13,7 @@ use zk;
 
 use ff::{Field, PrimeField};
 use nova_snark::{
+    frontend::gadgets::poseidon::{Sponge, SpongeTrait, Strength},
     nova::{CompressedSNARK, PublicParams, RecursiveSNARK},
     provider::{Bn256EngineKZG, GrumpkinEngine},
     traits::{snark::RelaxedR1CSSNARKTrait, Engine, Group},
@@ -148,50 +149,41 @@ async fn main() -> Result<(), Error> {
     let new_logs = db::get_new_logs(&pg_client, &args.tables, &prev_seq).await;
     assert!(new_logs.len() != 0, "No logs found to process");
 
-    // Calculate the CLogs to insert or update (without the ids yet)
-    let (diff_clogs, insertion_order) = aggregate_logs(&new_logs);
-
     // Must get before upsert
     let old_clogs: Vec<CLog> = db::get_clogs(&pg_client).await;
-    let old_clogs_map: HashMap<i32 /* flow_id */, CLog> = old_clogs
+    let old_clogs_map: HashMap<i32 /* user_id */, CLog> = old_clogs
         .iter()
-        .map(|clog| (clog.flow_id, clog.clone()))
+        .map(|clog| (clog.user_id, clog.clone()))
         .collect();
+
+    let mut clogs_map = old_clogs_map.clone();
+
+    // Calculate the CLogs to insert or update (without the ids yet)
+    let insertion_order = aggregate_logs(&mut clogs_map, &new_logs);
 
     // Distinguish the updates and inserts by checking the old clogs table.
     // If it exists, we update. If not, we insert and use the id as clog.id.
     // We DO NOT use the clog.id as the id. It's assigned during the database inserts.
-    let mut update_clogs: HashMap<i32 /* flow_id */, CLog> = diff_clogs
+    let mut update_clogs: HashMap<i32 /* user_id */, CLog> = clogs_map
         .iter()
-        .filter(|(flow_id, _clog)| old_clogs_map.contains_key(flow_id))
-        .map(|(flow_id, clog)| (*flow_id, clog.clone()))
+        .filter(|(user_id, _clog)| old_clogs_map.contains_key(user_id))
+        .map(|(user_id, clog)| (*user_id, clog.clone()))
         .collect();
-    let mut insert_clogs: HashMap<i32 /* flow_id */, CLog> = insertion_order
+    let mut insert_clogs: HashMap<i32 /* user_id */, CLog> = insertion_order
         .iter()
-        .filter(|flow_id| !old_clogs_map.contains_key(flow_id))
-        .map(|flow_id| (*flow_id, diff_clogs.get(flow_id).unwrap().clone()))
+        .filter(|user_id| !old_clogs_map.contains_key(user_id))
+        .map(|user_id| (*user_id, clogs_map.get(user_id).unwrap().clone()))
         .collect();
     let insertion_order: Vec<i32> = insertion_order
         .iter()
-        .filter(|flow_id| insert_clogs.contains_key(flow_id))
-        .map(|flow_id| *flow_id)
+        .filter(|user_id| insert_clogs.contains_key(user_id))
+        .map(|user_id| *user_id)
         .collect();
-    // Check if update_clogs + insert_clogs = diff_clogs
-    assert!(
-        update_clogs.len() + insert_clogs.len() == diff_clogs.len(),
-        "Update + Insert clog count mismatch"
-    );
-    assert!(
-        diff_clogs.keys().all(|flow_id| {
-            update_clogs.contains_key(flow_id) || insert_clogs.contains_key(flow_id)
-        }),
-        "Diff clogs keys mismatch"
-    );
     // Update keys don't contain Insert keys
     assert!(
         update_clogs
             .keys()
-            .all(|flow_id| !insert_clogs.contains_key(flow_id)),
+            .all(|user_id| !insert_clogs.contains_key(user_id)),
         "Update clogs contain insert clog keys"
     );
 
@@ -207,8 +199,8 @@ async fn main() -> Result<(), Error> {
         let id = db::update_aggregate_clog(&pg_client, &clog).await;
         clog.id = id;
     }
-    for flow_id in insertion_order.iter() {
-        let clog: &mut CLog = insert_clogs.get_mut(&flow_id).unwrap();
+    for user_id in insertion_order.iter() {
+        let clog: &mut CLog = insert_clogs.get_mut(&user_id).unwrap();
         let id = db::insert_clog(&pg_client, clog).await;
         clog.id = id;
     }
@@ -218,8 +210,8 @@ async fn main() -> Result<(), Error> {
         info!("  {}", clog.to_string());
     }
     info!("Insert CLogs:");
-    for flow_id in insertion_order.iter() {
-        info!("  {}", insert_clogs.get(&flow_id).unwrap().to_string());
+    for user_id in insertion_order.iter() {
+        info!("  {}", insert_clogs.get(&user_id).unwrap().to_string());
     }
 
     // Update the last sequence number in the database metadata
@@ -228,9 +220,9 @@ async fn main() -> Result<(), Error> {
     info!("Updated last_seq in DB metadata to {}", curr_seq);
 
     let new_clogs: Vec<CLog> = db::get_clogs(&pg_client).await;
-    let new_clogs_map: HashMap<i32 /* flow_id */, CLog> = new_clogs
+    let new_clogs_map: HashMap<i32 /* user_id */, CLog> = new_clogs
         .iter()
-        .map(|clog| (clog.flow_id, clog.clone()))
+        .map(|clog| (clog.user_id, clog.clone()))
         .collect();
 
     info!("New CLogs:");
@@ -240,14 +232,14 @@ async fn main() -> Result<(), Error> {
 
     // Check if the new clogs contain the match of update_clogs and exact match of insert_clogs
     assert!(
-        update_clogs.iter().all(|(flow_id, clog)| {
-            new_clogs_map.contains_key(flow_id) && new_clogs_map.get(flow_id).unwrap().id == clog.id
+        update_clogs.iter().all(|(user_id, clog)| {
+            new_clogs_map.contains_key(user_id) && new_clogs_map.get(user_id).unwrap().id == clog.id
         }),
         "Updated clogs not found in new clogs"
     );
     assert!(
-        insert_clogs.iter().all(|(flow_id, clog)| {
-            new_clogs_map.contains_key(flow_id) && new_clogs_map.get(flow_id).unwrap() == clog
+        insert_clogs.iter().all(|(user_id, clog)| {
+            new_clogs_map.contains_key(user_id) && new_clogs_map.get(user_id).unwrap() == clog
         }),
         "Inserted clogs not found in new clogs"
     );
@@ -265,12 +257,9 @@ async fn main() -> Result<(), Error> {
                 k as u32,
                 ZKClog {
                     merkle_idx: util::id_to_idx(clog.id),
-                    id: Scalar::from(clog.id as u64),
-                    flow_id: Scalar::from(clog.flow_id as u64),
-                    src: Scalar::from(clog.src as u64),
-                    dst: Scalar::from(clog.dst as u64),
-                    packet_size: Scalar::from(clog.packet_size as u64),
-                    hop_cnt: Scalar::from(clog.hop_cnt as u64),
+                    user_id: Scalar::from(clog.user_id as u64),
+                    hash_chain: Scalar::from_bytes(clog.hash_chain[..].try_into().unwrap())
+                        .unwrap(),
                 },
             )
         })
@@ -280,7 +269,7 @@ async fn main() -> Result<(), Error> {
 
     const EMPTY_LOG: ZKLog = ZKLog {
         id: 0,
-        flow_id: 0,
+        user_id: 0,
         src: 0,
         dst: 0,
         pred: 0,
@@ -303,7 +292,7 @@ async fn main() -> Result<(), Error> {
                 .iter()
                 .map(|log| ZKLog {
                     id: log.id as u32,
-                    flow_id: log.flow_id as u32,
+                    user_id: log.flow_id as u32,
                     src: log.src as u32,
                     dst: log.dst as u32,
                     pred: log.pred as u32,
@@ -430,8 +419,13 @@ async fn main() -> Result<(), Error> {
  * Aggregates logs from all nodes into a single HashMap where the key is the flow_id.
  * The CLog struct is used to represent the aggregated log.
  */
-fn aggregate_logs(new_logs: &Vec<Vec<Log>>) -> (HashMap<i32 /* flow_id */, CLog>, Vec<i32>) {
-    let mut aggregated_map = HashMap::<i32, CLog>::new();
+fn aggregate_logs(old_clogs: &mut HashMap<i32, CLog>, new_logs: &Vec<Vec<Log>>) -> Vec<i32> {
+    type ZKLog = zk::Log<u32>;
+    type E1 = Bn256EngineKZG;
+    type Scalar = <<E1 as Engine>::GE as Group>::Scalar;
+
+    let hash_params = Sponge::<Scalar, zk::U2>::api_constants(Strength::Standard);
+
     let mut insertion_order = Vec::<i32>::new();
 
     for logs in new_logs {
@@ -439,17 +433,45 @@ fn aggregate_logs(new_logs: &Vec<Vec<Log>>) -> (HashMap<i32 /* flow_id */, CLog>
             let key = log.flow_id;
 
             // If we're inserting, update the insertion order
-            if !aggregated_map.contains_key(&key) {
+            if !old_clogs.contains_key(&key) {
                 insertion_order.push(key);
             }
 
+            let zklog_packed = ZKLog {
+                id: log.id as u32,
+                user_id: log.flow_id as u32,
+                src: log.src as u32,
+                dst: log.dst as u32,
+                pred: log.pred as u32,
+                packet_size: log.packet_size as u32,
+                hop_cnt: log.hop_cnt as u32,
+            }
+            .to_scalar_log()
+            .pack();
+
             // If key exists, modify it; otherwise, insert a new value
-            aggregated_map
+            old_clogs
                 .entry(key)
-                .and_modify(|clog: &mut CLog| clog.hop_cnt += log.hop_cnt)
-                .or_insert(CLog::from_log(&log));
+                .and_modify(|clog: &mut CLog| {
+                    clog.hash_chain = zk::hash_U2(
+                        vec![
+                            Scalar::from_bytes(clog.hash_chain[..].try_into().unwrap()).unwrap(),
+                            zklog_packed,
+                        ],
+                        &hash_params,
+                    )
+                    .to_bytes()
+                    .into()
+                })
+                .or_insert(CLog {
+                    id: log.id,
+                    user_id: log.flow_id,
+                    hash_chain: zk::hash_U2(vec![Scalar::ZERO, zklog_packed], &hash_params)
+                        .to_bytes()
+                        .into(),
+                });
         }
     }
 
-    (aggregated_map, insertion_order)
+    insertion_order
 }

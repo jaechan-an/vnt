@@ -231,7 +231,7 @@ fn allocated_n_bits_le<Scalar: PrimeField + PrimeFieldBits, CS: ConstraintSystem
 #[derive(Clone, Debug)]
 pub struct Log<T> {
     pub id: T,
-    pub flow_id: T,
+    pub user_id: T,
     pub src: T,
     pub dst: T,
     pub pred: T,
@@ -243,21 +243,20 @@ const ENTRY_SIZE: usize = 32;
 const LOG_OFFSETS: Log<(usize, usize)> = Log {
     // This defines the packing of Log fields into a Scalar. Each field takes up 32 bits in the resulting Scalar.
     id: (ENTRY_SIZE * 0, ENTRY_SIZE),
-    flow_id: (ENTRY_SIZE * 1, ENTRY_SIZE),
+    user_id: (ENTRY_SIZE * 1, ENTRY_SIZE),
     src: (ENTRY_SIZE * 2, ENTRY_SIZE),
     dst: (ENTRY_SIZE * 3, ENTRY_SIZE),
     pred: (ENTRY_SIZE * 4, ENTRY_SIZE),
     packet_size: (ENTRY_SIZE * 5, ENTRY_SIZE),
     hop_cnt: (ENTRY_SIZE * 6, ENTRY_SIZE),
 };
-const N_LOG_BITS: usize = ENTRY_SIZE * 7;
 
 impl<T> Log<T> {
     fn fields(&self) -> Vec<&T> {
         // List of all fields that are hashed
         vec![
             &self.id,
-            &self.flow_id,
+            &self.user_id,
             &self.src,
             &self.dst,
             &self.pred,
@@ -268,10 +267,10 @@ impl<T> Log<T> {
 }
 
 impl<T: Copy + Into<u64>> Log<T> {
-    fn to_scalar_log<Scalar: PrimeField + PrimeFieldBits>(&self) -> Log<Scalar> {
+    pub fn to_scalar_log<Scalar: PrimeField + PrimeFieldBits>(&self) -> Log<Scalar> {
         Log {
             id: Scalar::from(self.id.into()),
-            flow_id: Scalar::from(self.flow_id.into()),
+            user_id: Scalar::from(self.user_id.into()),
             src: Scalar::from(self.src.into()),
             dst: Scalar::from(self.dst.into()),
             pred: Scalar::from(self.pred.into()),
@@ -294,13 +293,14 @@ pub fn update_clogs<
     let scalar_log = raw_log.to_scalar_log::<Scalar>();
     let len = compressed_logs.len();
 
-    let (old_clog, to_insert) = match compressed_logs.get(&raw_log.flow_id.into()) {
+    let hash_params = Sponge::<Scalar, U2>::api_constants(Strength::Standard);
+    let (old_clog, to_insert) = match compressed_logs.get(&raw_log.user_id.into()) {
         Some(old_clog) => {
             let old_clog = old_clog.clone();
             let mut clog = old_clog.clone();
 
-            // Update clog hop count
-            clog.hop_cnt += scalar_log.hop_cnt;
+            // Update clog hash chain
+            clog.hash_chain = hash_U2(vec![clog.hash_chain, scalar_log.pack()], &hash_params);
 
             (old_clog.clone(), clog)
         }
@@ -312,7 +312,7 @@ pub fn update_clogs<
 
     // update tree
     let clog_update = ClogUpdate::do_update(tree, old_clog, to_insert.clone());
-    compressed_logs.insert(raw_log.flow_id.into(), to_insert.clone());
+    compressed_logs.insert(raw_log.user_id.into(), to_insert.clone());
 
     Update {
         raw_log: raw_log.clone(),
@@ -321,7 +321,7 @@ pub fn update_clogs<
 }
 
 impl<Scalar: PrimeField + PrimeFieldBits> Log<Scalar> {
-    fn pack(&self) -> Scalar {
+    pub fn pack(&self) -> Scalar {
         // Combine fields into a single Scalar.
         let mut packed = Scalar::ZERO;
         let TWO = Scalar::from(2);
@@ -335,103 +335,72 @@ impl<Scalar: PrimeField + PrimeFieldBits> Log<Scalar> {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CompressedLog<Scalar> {
     pub merkle_idx: usize,
-    pub id: Scalar,
-    pub flow_id: Scalar,
-    pub src: Scalar,
-    pub dst: Scalar,
-    pub packet_size: Scalar,
-    pub hop_cnt: Scalar,
+    pub user_id: Scalar,
+    pub hash_chain: Scalar,
 }
 
 const CLOG_OFFSETS: CompressedLog<(usize, usize)> = CompressedLog {
     // Each CompressedLog field takes up 32 bits in the resulting Scalar.
     merkle_idx: 0,
-    id: (ENTRY_SIZE * 0, ENTRY_SIZE),
-    flow_id: (ENTRY_SIZE * 1, ENTRY_SIZE),
-    src: (ENTRY_SIZE * 2, ENTRY_SIZE),
-    dst: (ENTRY_SIZE * 3, ENTRY_SIZE),
-    packet_size: (ENTRY_SIZE * 4, ENTRY_SIZE),
-    hop_cnt: (ENTRY_SIZE * 5, ENTRY_SIZE),
+    user_id: (ENTRY_SIZE * 0, ENTRY_SIZE),
+    hash_chain: (0, 0),
 };
-const N_CLOG_BITS: usize = ENTRY_SIZE * 6;
 
 impl<T> CompressedLog<T> {
     fn fields(&self) -> Vec<&T> {
         // List of all fields that are hashed
-        vec![
-            &self.id,
-            &self.flow_id,
-            &self.src,
-            &self.dst,
-            &self.packet_size,
-            &self.hop_cnt,
-        ]
+        vec![&self.user_id]
     }
 }
 
 impl<Scalar: PrimeField + PrimeFieldBits> CompressedLog<Scalar> {
     pub fn to_leaf(&self) -> Leaf<Scalar, U1> {
         Leaf {
-            val: vec![self.pack()],
+            val: self.pack(),
             _arity: PhantomData::<U1>,
         }
     }
 
     fn from_idx_log(merkle_idx: usize, log: &Log<Scalar>) -> Self {
-        CompressedLog {
+        let hash_params = Sponge::<Scalar, U2>::api_constants(Strength::Standard);
+        Self {
             merkle_idx,
-            id: Scalar::from(merkle_idx as u64),
-            flow_id: log.flow_id,
-            src: log.src,
-            dst: log.dst,
-            packet_size: log.packet_size,
-            hop_cnt: log.hop_cnt,
+            user_id: log.user_id,
+            hash_chain: hash_U2(vec![Scalar::ZERO, log.pack()], &hash_params),
         }
     }
 
-    fn pack(&self) -> Scalar {
-        // Combine fields into a single Scalar.
+    fn pack(&self) -> Vec<Scalar> {
+        // Combine fields into a leaf value.
         let mut packed = Scalar::ZERO;
         let TWO = Scalar::from(2);
         for (field, (offset, _nbits)) in zip(self.fields(), CLOG_OFFSETS.fields()) {
             packed += *field * TWO.pow(std::slice::from_ref(&(*offset as u64)));
         }
-        packed
+        vec![packed, self.hash_chain]
     }
 
     pub fn to_repr(&self) -> CompressedLog<Scalar::Repr> {
         CompressedLog {
             merkle_idx: self.merkle_idx,
-            id: self.id.to_repr(),
-            flow_id: self.flow_id.to_repr(),
-            src: self.src.to_repr(),
-            dst: self.dst.to_repr(),
-            packet_size: self.packet_size.to_repr(),
-            hop_cnt: self.hop_cnt.to_repr(),
+            user_id: self.user_id.to_repr(),
+            hash_chain: self.hash_chain.to_repr(),
         }
     }
 
     pub fn from_repr(repr: &CompressedLog<Scalar::Repr>) -> Self {
         CompressedLog {
             merkle_idx: repr.merkle_idx,
-            id: Scalar::from_repr(repr.id).unwrap(),
-            flow_id: Scalar::from_repr(repr.flow_id).unwrap(),
-            src: Scalar::from_repr(repr.src).unwrap(),
-            dst: Scalar::from_repr(repr.dst).unwrap(),
-            packet_size: Scalar::from_repr(repr.packet_size).unwrap(),
-            hop_cnt: Scalar::from_repr(repr.hop_cnt).unwrap(),
+            user_id: Scalar::from_repr(repr.user_id).unwrap(),
+            hash_chain: Scalar::from_repr(repr.hash_chain).unwrap(),
         }
     }
 
     pub fn zero(idx: usize) -> Self {
         Self {
             merkle_idx: idx,
-            id: Scalar::ZERO,
-            flow_id: Scalar::ZERO,
-            src: Scalar::ZERO,
-            dst: Scalar::ZERO,
-            packet_size: Scalar::ZERO,
-            hop_cnt: Scalar::ZERO,
+            user_id: Scalar::ZERO,
+            hash_chain: Scalar::ZERO,
         }
     }
 }
@@ -452,14 +421,12 @@ fn tree_str<Scalar: PrimeField + PrimeFieldBits, const N: usize>(
                 elements.push(format!("<empty> x {}", empty_streak));
                 empty_streak = 0;
             }
-            let bits: Vec<bool> = tree
+            let val: &Vec<Scalar> = &tree
                 .leaf_hash_db
                 .get(&format!("{:?}", leaf_hash))
                 .unwrap()
-                .val[0]
-                .to_le_bits()
-                .into_iter()
-                .collect();
+                .val;
+            let bits: Vec<bool> = val[0].to_le_bits().into_iter().collect();
             let fields: Vec<u64> = CLOG_OFFSETS
                 .fields()
                 .iter()
@@ -470,7 +437,7 @@ fn tree_str<Scalar: PrimeField + PrimeFieldBits, const N: usize>(
                         .fold(0u64, |acc, x| acc * 2 + (*x as u64))
                 })
                 .collect();
-            elements.push(format!("{:?}", fields));
+            elements.push(format!("{:?}, {:?}", fields, val[1]));
         }
     }
     if empty_streak != 0 {
@@ -492,12 +459,8 @@ impl<Scalar: PrimeField + PrimeFieldBits> ClogUpdate<Scalar> {
         let last_idx = (1 << HEIGHT) - 1;
         let zero_clog = CompressedLog {
             merkle_idx: last_idx,
-            id: Scalar::ZERO,
-            flow_id: Scalar::ZERO,
-            src: Scalar::ZERO,
-            dst: Scalar::ZERO,
-            packet_size: Scalar::ZERO,
-            hop_cnt: Scalar::ZERO,
+            user_id: Scalar::ZERO,
+            hash_chain: Scalar::ZERO,
         };
         let idx_bits = idx_to_bits(HEIGHT, Scalar::from(last_idx as u64));
         let siblings_path = tree.get_siblings_path(idx_bits);
@@ -527,7 +490,7 @@ impl<Scalar: PrimeField + PrimeFieldBits> ClogUpdate<Scalar> {
     }
 
     // Helper function for processing merkle tree update
-    // Returns (index_bits, old_unpacked, old_packed, new_packed, new_root)
+    // Returns (index_bits, old_packed, new_packed, old_hash_chain, new_hash_chain, new_root)
     pub fn merkle_tree_update_circuit<const HEIGHT: usize, CS: ConstraintSystem<Scalar>>(
         &self,
         mut cs: CS,
@@ -535,7 +498,8 @@ impl<Scalar: PrimeField + PrimeFieldBits> ClogUpdate<Scalar> {
     ) -> Result<
         (
             Vec<AllocatedBit>,
-            Vec<AllocatedBit>,
+            AllocatedNum<Scalar>,
+            AllocatedNum<Scalar>,
             AllocatedNum<Scalar>,
             AllocatedNum<Scalar>,
             AllocatedNum<Scalar>,
@@ -561,17 +525,19 @@ impl<Scalar: PrimeField + PrimeFieldBits> ClogUpdate<Scalar> {
             .collect::<Result<Vec<_>, _>>()?;
 
         // Compute root for old_clog
-        let old_unpacked_bits: Vec<_> = allocated_n_bits_le(
-            cs.namespace(|| "old clog bit decomposition"),
-            self.old_clog.pack(),
-            N_CLOG_BITS,
-        )?;
-        let old_packed_clog_var =
-            le_bits_to_num(cs.namespace(|| "old packed clog"), &old_unpacked_bits)?;
+        let old_packed = self.old_clog.pack();
+        let old_packed_var =
+            AllocatedNum::alloc(cs.namespace(|| format!("old clog packed 0")), || {
+                Ok(old_packed[0])
+            })?;
+        let old_hash_chain_var =
+            AllocatedNum::alloc(cs.namespace(|| format!("old clog hash chain")), || {
+                Ok(old_packed[1])
+            })?;
 
         let old_computed_root_var = path_computed_root::<Scalar, HEIGHT, _>(
             &mut cs.namespace(|| "valid old"),
-            vec![old_packed_clog_var.clone()],
+            vec![old_packed_var.clone(), old_hash_chain_var.clone()],
             index_bits_var.clone(),
             siblings_var.clone(),
         )?;
@@ -586,21 +552,27 @@ impl<Scalar: PrimeField + PrimeFieldBits> ClogUpdate<Scalar> {
         );
 
         // Compute root for new_clog
-        let new_packed_clog_var =
-            AllocatedNum::alloc(cs.namespace(|| format!("new packed clog")), || {
-                Ok(self.new_clog.pack())
+        let new_packed = self.new_clog.pack();
+        let new_packed_var =
+            AllocatedNum::alloc(cs.namespace(|| format!("new clog packed 0")), || {
+                Ok(new_packed[0])
+            })?;
+        let new_hash_chain_var =
+            AllocatedNum::alloc(cs.namespace(|| format!("new clog hash chain")), || {
+                Ok(new_packed[1])
             })?;
         let new_computed_root_var = path_computed_root::<Scalar, HEIGHT, _>(
             &mut cs.namespace(|| "valid new"),
-            vec![new_packed_clog_var.clone()],
+            vec![new_packed_var.clone(), new_hash_chain_var.clone()],
             index_bits_var.clone(),
             siblings_var.clone(),
         )?;
         Ok((
             index_bits_var,
-            old_unpacked_bits,
-            old_packed_clog_var,
-            new_packed_clog_var,
+            old_packed_var,
+            new_packed_var,
+            old_hash_chain_var,
+            new_hash_chain_var,
             new_computed_root_var,
         ))
     }
@@ -663,12 +635,8 @@ impl<
         // Index 0 is reserved
         let zero_clog = CompressedLog {
             merkle_idx: 0,
-            id: Scalar::ZERO,
-            flow_id: Scalar::ZERO,
-            src: Scalar::ZERO,
-            dst: Scalar::ZERO,
-            packet_size: Scalar::ZERO,
-            hop_cnt: Scalar::ZERO,
+            user_id: Scalar::ZERO,
+            hash_chain: Scalar::ZERO,
         };
 
         // Create vector of leaves
@@ -687,7 +655,7 @@ impl<
 
         // Compress existing logs
         for clog in merkle_leaves.iter() {
-            compressed_logs.insert(scalar_to_u64(clog.flow_id), clog.clone());
+            compressed_logs.insert(scalar_to_u64(clog.user_id), clog.clone());
         }
 
         let merkle_leaves: Vec<_> = merkle_leaves.iter().map(|clog| clog.to_leaf()).collect();
@@ -906,37 +874,22 @@ impl<
                 let update = &batch[log_idx];
                 let idx_info = format!("log {batch_idx}-{log_idx}");
 
-                let (hop_cnt_offset, hop_cnt_sz) = CLOG_OFFSETS.hop_cnt;
-
-                let (log_hop_cnt_offset, log_hop_cnt_sz) = LOG_OFFSETS.hop_cnt;
-
-                // Extract raw log hop count from bit decomposition
-                let unpacked_bits: Vec<_> = allocated_n_bits_le(
-                    cs.namespace(|| format!("{idx_info}: bit decomposition")),
-                    update.raw_log.to_scalar_log().pack(),
-                    N_LOG_BITS,
-                )?;
-
-                let hop_cnt_var = le_bits_to_num(
-                    cs.namespace(|| format!("{idx_info}: hop_cnt")),
-                    &unpacked_bits[log_hop_cnt_offset..log_hop_cnt_offset + log_hop_cnt_sz],
-                )?;
-
-                let packed_log_var = le_bits_to_num(
-                    cs.namespace(|| format!("{idx_info}: packed log")),
-                    &unpacked_bits,
-                )?;
+                // Get packed raw log
+                let packed_log_var = AllocatedNum::alloc(cs.namespace(|| "packed log"), || {
+                    Ok(update.raw_log.to_scalar_log().pack())
+                })?;
 
                 // Keep track of raw logs to compute batch hash
-                batch_vars.push(packed_log_var);
+                batch_vars.push(packed_log_var.clone());
 
                 // ------ Enforce all merkle tree updates ------
                 // Process update: update clog
                 let (
                     _clog_index_bits_var,
-                    clog_old_unpacked_bits,
                     clog_old_packed_var,
                     clog_new_packed_var,
+                    old_hash_chain_var,
+                    new_hash_chain_var,
                     new_computed_root_var,
                 ) = update.clog_update.merkle_tree_update_circuit::<HEIGHT, _>(
                     cs.namespace(|| format!("{idx_info}: clog_update")),
@@ -945,54 +898,36 @@ impl<
                 cur_root = new_computed_root_var;
 
                 // ------ Constraints on clog update ------
-
-                // Extract old hop count from bit decomposition. If clog is new, this will be 0
-                let old_hop_cnt_var = le_bits_to_num(
-                    cs.namespace(|| format!("{idx_info}: old clog hop_cnt")),
-                    &clog_old_unpacked_bits[hop_cnt_offset..hop_cnt_offset + hop_cnt_sz],
-                )?;
-
-                // Get bit decomposition of new clog hop count
-                let new_clog_hop_cnt = update.clog_update.new_clog.hop_cnt;
-                let new_clog_hop_cnt_bits: Vec<_> = allocated_n_bits_le(
-                    cs.namespace(|| "new hop_cnt bit decomposition"),
-                    new_clog_hop_cnt,
-                    hop_cnt_sz,
-                )?;
-                let new_hop_cnt_var = le_bits_to_num(
-                    cs.namespace(|| format!("{idx_info}: new clog hop_cnt")),
-                    &new_clog_hop_cnt_bits,
-                )?;
-
-                // Verify that new hop count is related to the old hop count
+                // Clog is updated, in which case the old user id equals the new user id, or it's
+                // new, in which case the old user id is 0
                 enforce_checked(
                     cs,
-                    format!("{idx_info}: enforce new hop_cnt == old hop_cnt + hop_cnt"),
-                    vec![Var::Plus(&old_hop_cnt_var), Var::Plus(&hop_cnt_var)],
-                    vec![Var::PlusOne],
-                    vec![Var::Plus(&new_hop_cnt_var)],
-                );
-
-                // Reconstruct new leaf by updating hop_cnt
-                let mut recons_unpacked_bits = clog_old_unpacked_bits.clone();
-                recons_unpacked_bits[hop_cnt_offset..hop_cnt_offset + hop_cnt_sz]
-                    .clone_from_slice(&new_clog_hop_cnt_bits);
-
-                let recons_packed_clog_var = le_bits_to_num(
-                    cs.namespace(|| format!("{idx_info}: reconstructed packed clog")),
-                    &recons_unpacked_bits,
-                )?;
-
-                // Clog is updated, in which case it should equal the reconstructed Clog, or it's
-                // new, in which case the old packed Clog should be 0 (default leaf value)
-                enforce_checked(
-                    cs,
-                    format!("{idx_info}: leaf is updated or new"),
+                    format!("{idx_info}: enforce old user id == new user id"),
                     vec![
-                        Var::Plus(&clog_new_packed_var),
-                        Var::Minus(&recons_packed_clog_var),
+                        Var::Plus(&clog_old_packed_var),
+                        Var::Minus(&clog_new_packed_var),
                     ],
                     vec![Var::Plus(&clog_old_packed_var)],
+                    vec![],
+                );
+
+                // Verify that new hash chain is related to the old hash chain
+                let hash_constants = Sponge::<Scalar, U2>::api_constants(Strength::Standard);
+                let computed_new_hash_chain = hash_circuit_U2(
+                    &mut cs.namespace(|| format!("{idx_info}: hash chain update")),
+                    vec![old_hash_chain_var, packed_log_var.clone()],
+                    &hash_constants,
+                )?;
+
+                // Hash chains should match, unless packed_log_var is 0
+                enforce_checked(
+                    cs,
+                    format!("{idx_info}: enforce computed hash chain == new hash chain"),
+                    vec![
+                        Var::Plus(&computed_new_hash_chain),
+                        Var::Minus(&new_hash_chain_var),
+                    ],
+                    vec![Var::Plus(&packed_log_var)],
                     vec![],
                 );
             }
@@ -1199,11 +1134,8 @@ impl<Scalar: PrimeField + PrimeFieldBits> ConsistencyCircuit<Scalar> {
         let mut bytes = Vec::new();
         for clog in clogs {
             bytes.extend_from_slice(&clog.id.to_le_bytes());
-            bytes.extend_from_slice(&clog.flow_id.to_le_bytes());
-            bytes.extend_from_slice(&clog.src.to_le_bytes());
-            bytes.extend_from_slice(&clog.dst.to_le_bytes());
-            bytes.extend_from_slice(&clog.packet_size.to_le_bytes());
-            bytes.extend_from_slice(&clog.hop_cnt.to_le_bytes());
+            bytes.extend_from_slice(&clog.user_id.to_le_bytes());
+            bytes.extend_from_slice(&clog.hash_chain);
         }
         bytes
     }

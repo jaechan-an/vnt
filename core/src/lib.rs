@@ -136,62 +136,28 @@ impl Log {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct CLog {
     pub id: i32,
-    pub flow_id: i32,
-    pub src: i32,
-    pub dst: i32,
-    pub packet_size: i32,
-    pub hop_cnt: i32,
+    pub user_id: i32,
+    pub hash_chain: Vec<u8>,
 }
 
 impl CLog {
-    pub fn new(id: i32, flow_id: i32, src: i32, dst: i32, packet_size: i32, hop_cnt: i32) -> Self {
+    pub fn new(id: i32, user_id: i32, hash_chain: Vec<u8>) -> Self {
         CLog {
-            id: id,
-            flow_id: flow_id,
-            src: src,
-            dst: dst,
-            packet_size: packet_size,
-            hop_cnt: hop_cnt,
+            id,
+            user_id,
+            hash_chain,
         }
     }
 
     pub fn equals(&self, clog: &CLog) -> bool {
-        self.flow_id == clog.flow_id
-            && self.src == clog.src
-            && self.dst == clog.dst
-            && self.packet_size == clog.packet_size
-            && self.hop_cnt == clog.hop_cnt
+        self.user_id == clog.user_id && self.hash_chain == clog.hash_chain
     }
 
     pub fn to_string(&self) -> String {
         format!(
-            "id: {}, flow_id: {}, src: {}, dst: {}, packet_size: {}, hop_cnt: {}",
-            self.id, self.flow_id, self.src, self.dst, self.packet_size, self.hop_cnt
+            "id: {}, user_id: {}, hash_chain: {:?}",
+            self.id, self.user_id, self.hash_chain
         )
-    }
-
-    pub fn from_log(log: &Log) -> Self {
-        CLog {
-            id: log.id,
-            flow_id: log.flow_id,
-            src: log.src,
-            dst: log.dst,
-            packet_size: log.packet_size,
-            hop_cnt: log.hop_cnt,
-        }
-    }
-
-    pub fn aggregate(&self, clog: &CLog) -> Self {
-        assert!(self.id == clog.id);
-
-        CLog {
-            id: self.id,
-            flow_id: self.flow_id,
-            src: self.src,
-            dst: self.dst,
-            packet_size: self.packet_size,
-            hop_cnt: self.hop_cnt + clog.hop_cnt,
-        }
     }
 }
 
