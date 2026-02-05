@@ -252,11 +252,8 @@ pub struct QueryPrivateInput {
     /// The previously calculated root of the Merkle Tree.
     pub cur_root: [u8; 32],
 
-    /// Source for the query.
-    pub src: i32,
-
-    /// Destination for the query.
-    pub dst: i32,
+    /// User id for the query.
+    pub user_id: i32,
 }
 
 /// Public journal values that will be committed by the metric compute method.

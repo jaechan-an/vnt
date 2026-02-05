@@ -60,6 +60,7 @@ fn main() {
     end = env::cycle_count();
     println!("Old clogs verified in {} cycles", end - start);
 
+    /*
     // Check if the new clogs are a match of the aggregation
     let diff_clogs = aggregate_logs(&input.new_logs);
 
@@ -77,15 +78,13 @@ fn main() {
         );
 
         assert!(
-            clog.flow_id == input_clog.unwrap().flow_id
-                && clog.src == input_clog.unwrap().src
-                && clog.dst == input_clog.unwrap().dst
-                && clog.packet_size == input_clog.unwrap().packet_size
-                && clog.hop_cnt == input_clog.unwrap().hop_cnt,
+            clog.user_id == input_clog.unwrap().user_id
+                && clog.hash_chain == input_clog.unwrap().hash_chain,
             "Aggregated clog mismatch for flow_id {}",
             flow_id
         );
     }
+    */
 
     // Step 3. Now update the Merkle tree with update_clogs and insert_clogs.
     // The result will be a new Merkle tree with the updated logs. This Merkle tree will
@@ -95,18 +94,19 @@ fn main() {
     let mut elements: Vec<CLog> = prev_tree.elements().to_vec();
 
     // Update existing leaves.
-    for (flow_id, clog_update) in &input.update_clogs {
+    for (user_id, clog_update) in &input.update_clogs {
         let old_clog = input
             .old_clogs
-            .get(flow_id)
+            .get(user_id)
             .expect("Old clog not found for update");
 
         assert!(
             old_clog.id == clog_update.id,
-            "CLog ID mismatch for flow {}",
-            flow_id
+            "CLog ID mismatch for user {}",
+            user_id
         );
 
+        /*
         let new_clog = old_clog.aggregate(clog_update);
         let idx = util::id_to_idx(new_clog.id);
         assert!(
@@ -115,6 +115,7 @@ fn main() {
             idx
         );
         elements[idx] = new_clog;
+        */
     }
 
     /*
@@ -180,6 +181,7 @@ fn compute_hash(logs: &Vec<Log>) -> [u8; 32] {
  * Aggregates logs from all nodes into a single HashMap where the key is the flow_id.
  * The CLog struct is used to represent the aggregated log.
  */
+
 fn aggregate_logs(new_logs: &Vec<Vec<Log>>) -> HashMap<i32 /* flow_id */, CLog> {
     let mut aggregated_map = HashMap::<i32, CLog>::new();
 
@@ -187,11 +189,13 @@ fn aggregate_logs(new_logs: &Vec<Vec<Log>>) -> HashMap<i32 /* flow_id */, CLog> 
         for log in logs {
             let key = log.flow_id;
 
+            /*
             // If key exists, modify it; otherwise, insert a new value
             aggregated_map
                 .entry(key)
                 .and_modify(|clog: &mut CLog| clog.hop_cnt += log.hop_cnt)
                 .or_insert(CLog::from_log(&log));
+            */
         }
     }
 

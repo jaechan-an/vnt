@@ -10,7 +10,7 @@ use nova_snark::{
         },
         num::{AllocatedNum, Num},
     },
-    gadgets::utils::le_bits_to_num,
+    gadgets::utils::{alloc_zero, le_bits_to_num},
 };
 use std::marker::PhantomData;
 
@@ -144,7 +144,7 @@ where
 {
     let mut num = Num::<Scalar>::zero();
     let mut coeff = Scalar::ONE;
-    for bit in bits.iter().take(Scalar::CAPACITY as usize) {
+    for bit in bits.iter().take(Scalar::CAPACITY as usize + 1) {
         num = num.add_bool_with_coeff(CS::one(), bit, coeff);
 
         coeff = coeff.double();
@@ -723,6 +723,8 @@ impl<
 
 #[derive(Clone)]
 enum Var<'a, Scalar: PrimeField> {
+    PlusBool(&'a Boolean),
+    PlusBit(&'a AllocatedBit),
     Plus(&'a AllocatedNum<Scalar>),
     Minus(&'a AllocatedNum<Scalar>),
     PlusOne,
@@ -745,6 +747,8 @@ fn enforce_checked<AR: Into<String>, Scalar: PrimeField, CS: ConstraintSystem<Sc
         let accumulate_value = |variables: &Vec<Var<Scalar>>| {
             variables.iter().fold(Ok(Scalar::ZERO), |acc, x| {
                 Ok(match x {
+                    Var::PlusBool(var) => acc? + Scalar::from(var.get_value().ok_or(())? as u64),
+                    Var::PlusBit(var) => acc? + Scalar::from(var.get_value().ok_or(())? as u64),
                     Var::Plus(var) => acc? + var.get_value().ok_or(())?,
                     Var::Minus(var) => acc? - var.get_value().ok_or(())?,
                     Var::PlusOne => acc? + Scalar::ONE,
@@ -769,6 +773,18 @@ fn enforce_checked<AR: Into<String>, Scalar: PrimeField, CS: ConstraintSystem<Sc
 
     let accumulate_lincomb = |lc, variables: &Vec<Var<Scalar>>| {
         variables.iter().fold(lc, |lc, x| match x {
+            Var::PlusBool(var) => match var {
+                Boolean::Is(bit) => lc + bit.get_variable(),
+                Boolean::Not(bit) => lc + CS::one() - bit.get_variable(),
+                Boolean::Constant(bit) => {
+                    if *bit {
+                        lc + CS::one()
+                    } else {
+                        lc
+                    }
+                }
+            },
+            Var::PlusBit(var) => lc + var.get_variable(),
             Var::Plus(var) => lc + var.get_variable(),
             Var::Minus(var) => lc - var.get_variable(),
             Var::PlusOne => lc + CS::one(),
@@ -1007,7 +1023,7 @@ pub fn hash_to_field_elements<F: PrimeField>(hash: &[u8; 32]) -> (F, F) {
 /// This matches the tree structure used by the aggregation circuit.
 pub fn merkle_root_from_leaves_circuit<F, CS, const N: usize>(
     cs: &mut CS,
-    leaf_values: Vec<AllocatedNum<F>>,
+    leaf_values: Vec<Vec<AllocatedNum<F>>>,
 ) -> Result<AllocatedNum<F>, SynthesisError>
 where
     F: PrimeField + PrimeFieldBits,
@@ -1017,7 +1033,7 @@ where
     let node_hash_params = Sponge::<F, U2>::api_constants(Strength::Standard);
 
     // Compute empty leaf hash (hash of Scalar::ZERO)
-    let empty_leaf_hash = hash_U1(vec![F::ZERO], &leaf_hash_params);
+    let empty_leaf_hash = hash_U1(vec![F::ZERO, F::ZERO], &leaf_hash_params);
 
     // Precompute empty hashes for each level
     let mut empty_hashes = vec![empty_leaf_hash];
@@ -1035,7 +1051,7 @@ where
         // Hash the leaf using zk's circuit hash function
         let mut right_hash = hash_circuit_U1(
             &mut cs.namespace(|| format!("leaf_hash_{}", i)),
-            vec![leaf_val.clone()],
+            leaf_val.clone(),
             &leaf_hash_params,
         )?;
 
@@ -1133,7 +1149,6 @@ impl<Scalar: PrimeField + PrimeFieldBits> ConsistencyCircuit<Scalar> {
     pub fn clogs_to_bytes(clogs: &[core::CLog]) -> Vec<u8> {
         let mut bytes = Vec::new();
         for clog in clogs {
-            bytes.extend_from_slice(&clog.id.to_le_bytes());
             bytes.extend_from_slice(&clog.user_id.to_le_bytes());
             bytes.extend_from_slice(&clog.hash_chain);
         }
@@ -1199,11 +1214,12 @@ impl<Scalar: PrimeField + PrimeFieldBits> StepCircuit<Scalar> for ConsistencyCir
             )?;
 
             // Constrain computed_bit == expected_bit
-            cs.enforce(
-                || format!("hash_bit_{}_matches", i),
-                |_| computed_bit.lc(CS::one(), Scalar::ONE),
-                |lc| lc + CS::one(),
-                |lc| lc + expected_var.get_variable(),
+            enforce_checked(
+                cs,
+                format!("hash_bit_{}_matches", i),
+                vec![Var::PlusBool(computed_bit)],
+                vec![Var::PlusOne],
+                vec![Var::PlusBit(&expected_var)],
             );
         }
 
@@ -1216,25 +1232,29 @@ impl<Scalar: PrimeField + PrimeFieldBits> StepCircuit<Scalar> for ConsistencyCir
         let expected_lo_var =
             AllocatedNum::alloc(cs.namespace(|| "expected_lo"), || Ok(expected_lo))?;
 
-        cs.enforce(
-            || "hash_hi matches",
-            |lc| lc + hash_hi.get_variable() - expected_hi_var.get_variable(),
-            |lc| lc + CS::one(),
-            |lc| lc,
+        enforce_checked(
+            cs,
+            "hash_hi matches",
+            vec![Var::Plus(&hash_hi), Var::Minus(&expected_hi_var)],
+            vec![Var::PlusOne],
+            vec![],
         );
 
-        cs.enforce(
-            || "hash_lo matches",
-            |lc| lc + hash_lo.get_variable() - expected_lo_var.get_variable(),
-            |lc| lc + CS::one(),
-            |lc| lc,
+        enforce_checked(
+            cs,
+            "hash_lo matches",
+            vec![Var::Plus(&hash_lo), Var::Minus(&expected_lo_var)],
+            vec![Var::PlusOne],
+            vec![],
         );
 
         // 5. Pack preimage bits into field elements matching other packing logic.
-        const BITS_PER_CLOG: usize = 192; // Each CLog is 192 bits (6 32 bit fields)
+        const BITS_PER_CLOG: usize = 32 + 256; // 32 for user_id, 256 bits for hash chain
         let num_clogs = preimage_bits.len() / BITS_PER_CLOG;
 
-        let mut packed_clogs: Vec<AllocatedNum<Scalar>> = Vec::with_capacity(num_clogs);
+        let mut packed_clogs: Vec<Vec<AllocatedNum<Scalar>>> = Vec::with_capacity(num_clogs + 1);
+        let zero_var = alloc_zero(cs.namespace(|| "zero"));
+        packed_clogs.push(vec![zero_var.clone(), zero_var]);
         for clog_idx in 0..num_clogs {
             let clog_start = clog_idx * BITS_PER_CLOG;
 
@@ -1249,11 +1269,18 @@ impl<Scalar: PrimeField + PrimeFieldBits> StepCircuit<Scalar> for ConsistencyCir
             }
 
             // Pack using the same logic as CompressedLog.pack()
-            let packed = pack_bits(
-                cs.namespace(|| format!("pack_clog_{}", clog_idx)),
-                &reordered_bits,
+            let packed1 = pack_bits(
+                // user id
+                cs.namespace(|| format!("pack_clog_1_{}", clog_idx)),
+                &reordered_bits[..32],
             )?;
-            packed_clogs.push(packed);
+            let packed2 = pack_bits(
+                // hash chain
+                cs.namespace(|| format!("pack_clog_2_{}", clog_idx)),
+                &reordered_bits[32..],
+            )?;
+            // println!("{clog_idx}: {:?} {:?}", packed1.get_value(), packed2.get_value());
+            packed_clogs.push(vec![packed1, packed2]);
         }
 
         // 6. Recompute Poseidon Merkle Root from packed CLogs
@@ -1264,11 +1291,12 @@ impl<Scalar: PrimeField + PrimeFieldBits> StepCircuit<Scalar> for ConsistencyCir
         )?;
 
         // Constrain computed root == input merkle_root
-        cs.enforce(
-            || "merkle_root_matches",
-            |lc| lc + computed_root.get_variable() - merkle_root.get_variable(),
-            |lc| lc + CS::one(),
-            |lc| lc,
+        enforce_checked(
+            cs,
+            "merkle_root_matches",
+            vec![Var::Plus(&computed_root), Var::Minus(&merkle_root)],
+            vec![Var::PlusOne],
+            vec![],
         );
 
         // 7. Update step counter
@@ -1276,11 +1304,12 @@ impl<Scalar: PrimeField + PrimeFieldBits> StepCircuit<Scalar> for ConsistencyCir
             Ok(Scalar::from((self.step + 1) as u64))
         })?;
 
-        cs.enforce(
-            || "step_count increments",
-            |lc| lc + step_count.get_variable() + CS::one(),
-            |lc| lc + CS::one(),
-            |lc| lc + new_step_count.get_variable(),
+        enforce_checked(
+            cs,
+            "step_count increments",
+            vec![Var::Plus(&step_count), Var::PlusOne],
+            vec![Var::PlusOne],
+            vec![Var::Plus(&new_step_count)],
         );
 
         Ok(vec![

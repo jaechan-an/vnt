@@ -161,14 +161,9 @@ async fn main() -> Result<(), Error> {
     // // Step 2. Read the aggregated logs from the database.
     let clogs: Vec<CLog> = db::get_clogs(&pg_client).await;
 
-    // Select random source and destination for the query.
+    // Select random user_id for the query.
     // Source should be different from destination.
-    let src = rand::random::<u32>() % args.tables as u32;
-    let mut dst = rand::random::<u32>() % args.tables as u32;
-    while src == dst {
-        dst = rand::random::<u32>() % args.tables as u32;
-    }
-    assert!(src != dst, "Source and destination must be different");
+    let user_id = rand::random::<u32>() % args.tables as u32;
 
     let merkle_tree_vector_file = proof_dir.join(&args.merkle_tree_vector_file);
     let clogs_from_file: Vec<CLog> =
@@ -179,9 +174,8 @@ async fn main() -> Result<(), Error> {
     );
 
     info!(
-        "Querying from src: {}, dst: {}, total logs: {}",
-        src,
-        dst,
+        "Querying from user_id: {}, total logs: {}",
+        user_id,
         clogs.len()
     );
 
@@ -189,8 +183,7 @@ async fn main() -> Result<(), Error> {
     let input = QueryPrivateInput {
         clogs: clogs,                                         // Aggregated logs: Vec<CLog>
         cur_root: pub_cur_root.to_repr().try_into().unwrap(), // Aggregation Merkle root: Vec<u8>
-        src: src as i32,                                      // Source for query
-        dst: dst as i32,                                      // Destination for query
+        user_id: user_id as i32,                              // User id for query
     };
 
     let env = ExecutorEnv::builder()

@@ -20,11 +20,8 @@ pub async fn get_clogs(client: &Client) -> Vec<CLog> {
 // TODO: move to core module
 fn row_to_clog(row: &Row) -> CLog {
     let id: i32 = row.get("id");
-    let flow_id: i32 = row.get("flow_id");
-    let src: i32 = row.get("src");
-    let dst: i32 = row.get("dst");
-    let packet_size: i32 = row.get("packet_size");
-    let hop_cnt: i32 = row.get("hop_cnt");
+    let user_id: i32 = row.get("user_id");
+    let hash_chain: Vec<u8> = row.get("hash_chain");
 
-    CLog::new(id, flow_id, src, dst, packet_size, hop_cnt)
+    CLog::new(id, user_id, hash_chain)
 }

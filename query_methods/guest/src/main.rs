@@ -12,8 +12,7 @@ fn main() {
     let QueryPrivateInput {
         ref clogs,
         cur_root,
-        src,
-        dst,
+        user_id,
     } = input;
     let read_input_end = env::cycle_count();
     eprintln!(
@@ -26,12 +25,8 @@ fn main() {
     let mut hasher = Sha256::new();
     for clog in clogs {
         // Hash each field of the clog
-        hasher.update(&clog.id.to_le_bytes());
-        hasher.update(&clog.flow_id.to_le_bytes());
-        hasher.update(&clog.src.to_le_bytes());
-        hasher.update(&clog.dst.to_le_bytes());
-        hasher.update(&clog.packet_size.to_le_bytes());
-        hasher.update(&clog.hop_cnt.to_le_bytes());
+        hasher.update(&clog.user_id.to_le_bytes());
+        hasher.update(&clog.hash_chain);
     }
     let clogs_hash = hasher.finalize();
     let hash_end = env::cycle_count();
@@ -41,19 +36,19 @@ fn main() {
     // Step 3: Perform query.
     // Filter all logs that match the query
     // Example:
-    // 1. SELECT SUM(hop_cnt) FROM clogs WHERE src = 0 AND dst = 6;
+    // 1. SELECT hash_chain FROM clogs WHERE user_id = 0;
     // 2. Calculate the percentage difference between the two results.
-    let mut sum_hop_cnt = 0;
+    let mut hash_chain: Vec<u8> = Vec::new();
 
     for clog in &input.clogs {
-        if clog.src == src && clog.dst == dst {
-            sum_hop_cnt += clog.hop_cnt;
+        if clog.user_id == user_id {
+            hash_chain = clog.hash_chain.clone();
             // Removed some proof verification logic from previous version since they weren't doing anything.
         }
     }
 
     // Step 4: Output query results.
-    let message = format!("src {} to dst {} hop_cnt: {}", src, dst, sum_hop_cnt);
+    let message = format!("user_id {} hash_chain: {:?}", user_id, hash_chain);
 
     let output = QueryJournal {
         success: true,

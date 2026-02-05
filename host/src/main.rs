@@ -219,7 +219,8 @@ async fn main() -> Result<(), Error> {
     db::put_metadata(&pg_client, "last_seq", curr_seq).await;
     info!("Updated last_seq in DB metadata to {}", curr_seq);
 
-    let new_clogs: Vec<CLog> = db::get_clogs(&pg_client).await;
+    let mut new_clogs: Vec<CLog> = db::get_clogs(&pg_client).await;
+    new_clogs.sort_unstable_by_key(|clog| clog.id);
     let new_clogs_map: HashMap<i32 /* user_id */, CLog> = new_clogs
         .iter()
         .map(|clog| (clog.user_id, clog.clone()))

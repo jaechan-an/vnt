@@ -34,7 +34,7 @@ for NUM_RECORDS in "${NUM_RECORDS_ARRAY[@]}"; do
   # Run initial inserts to the tables
   cargo run ${RELEASE} --bin simulator -- --tables=${NUM_TABLES} --records=${NUM_RECORDS}
 
-  sleep 5
+  sleep 1
 
   cargo run ${RELEASE} --bin host -- --tables=${NUM_TABLES}
 
@@ -43,13 +43,15 @@ for NUM_RECORDS in "${NUM_RECORDS_ARRAY[@]}"; do
   # Run updates to the tables
   cargo run ${RELEASE} --bin simulator -- --tables=${NUM_TABLES} --records=${NUM_RECORDS} --update-only
 
-  sleep 5
+  sleep 1
 
   cargo run ${RELEASE} --bin host -- --tables=${NUM_TABLES}
 
   cargo run ${RELEASE} --bin verify
 
-  # sleep 5
+  sleep 1
+
+  RISC0_DEV_MODE=${DEV_MODE} cargo run ${RELEASE} --bin query_consistency_proof
 
   # RISC0_DEV_MODE=${DEV_MODE} cargo run ${RELEASE} --bin query_host -- --tables=${NUM_TABLES}
 
