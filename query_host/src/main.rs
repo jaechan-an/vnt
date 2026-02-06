@@ -159,11 +159,12 @@ async fn main() -> Result<(), Error> {
     }
 
     // // Step 2. Read the aggregated logs from the database.
-    let clogs: Vec<CLog> = db::get_clogs(&pg_client).await;
+    let mut clogs: Vec<CLog> = db::get_clogs(&pg_client).await;
+    clogs.sort_unstable_by_key(|clog| clog.id);
 
     // Select random user_id for the query.
     // Source should be different from destination.
-    let user_id = rand::random::<u32>() % args.tables as u32;
+    let user_id = clogs[(rand::random::<u32>() as usize) % clogs.len() as usize].user_id;
 
     let merkle_tree_vector_file = proof_dir.join(&args.merkle_tree_vector_file);
     let clogs_from_file: Vec<CLog> =
